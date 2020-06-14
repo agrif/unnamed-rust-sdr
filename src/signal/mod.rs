@@ -46,6 +46,14 @@ pub trait Signal {
         Map::new(self, f)
     }
 
+    fn resample(self, rate: f32) -> Resample<Self>
+    where
+        Self::Sample: Channels,
+        Self: Sized,
+    {
+        Resample::new(self, rate)
+    }
+
     fn take(self, duration: f32) -> Take<Self>
     where
         Self: Sized,

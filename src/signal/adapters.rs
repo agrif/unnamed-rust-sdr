@@ -123,6 +123,123 @@ where
 }
 
 #[derive(Clone, Debug)]
+pub struct Resample<S: Signal> {
+    signal: S,
+    state: *mut libsamplerate::SRC_STATE,
+    rate: f32,
+    ratio: f32,
+    buffer: Vec<S::Sample>,
+    buffer_resampled: Vec<S::Sample>,
+    buffer_size: usize,
+    buffer_next: usize,
+}
+
+// the way we use state, this is safe
+unsafe impl<S> Send for Resample<S> where S: Signal {}
+
+pub trait Channels: Sized + Copy {
+    fn channels() -> usize;
+}
+
+impl Channels for f32 {
+    // in addition: this guarantees that casting from *Self to *f32 is fine
+    fn channels() -> usize {
+        1
+    }
+}
+
+impl<S> Resample<S> where S: Signal, S::Sample: Channels {
+    pub(super) fn new(signal: S, rate: f32) -> Self {
+        let buffer_size = 4096;
+        Resample {
+            rate: rate,
+            state: unsafe {
+                let state = libsamplerate::samplerate::src_new(
+                    libsamplerate::src_sinc::SRC_SINC_BEST_QUALITY as i32,
+                    S::Sample::channels() as i32,
+                    std::ptr::null_mut(),
+                );
+                if state.is_null() {
+                    panic!("could not initialize libsamplerate");
+                }
+                state
+            },
+            ratio: rate / signal.rate(),
+            signal,
+            buffer_size,
+            buffer: Vec::with_capacity(buffer_size),
+            buffer_resampled: Vec::with_capacity(buffer_size),
+            buffer_next: buffer_size,
+        }
+    }
+}
+
+impl<S> Drop for Resample<S> where S: Signal {
+    fn drop(&mut self) {
+        if !self.state.is_null() {
+            unsafe {
+                self.state = libsamplerate::samplerate::src_delete(self.state);
+            }
+        }
+    }
+}
+
+impl<S> Signal for Resample<S> where S: Signal, S::Sample: Channels {
+    type Sample = S::Sample;
+    fn next(&mut self) -> Option<Self::Sample> {
+        while self.buffer_next >= self.buffer_resampled.len() {
+            // refill our buffer
+            while self.buffer.len() < self.buffer_size {
+                if let Some(v) = self.signal.next() {
+                    self.buffer.push(v);
+                } else {
+                    break;
+                }
+            }
+
+            if self.buffer.len() == 0 {
+                // we tried -- nothing left
+                return None;
+            }
+
+            // resample buffer
+            let mut src = libsamplerate::samplerate::SRC_DATA {
+                data_in: self.buffer.as_mut_ptr() as *mut f32,
+                data_out: self.buffer_resampled.as_mut_ptr() as *mut f32,
+                input_frames: self.buffer.len() as i32,
+                output_frames: self.buffer_resampled.capacity() as i32,
+                input_frames_used: 0,
+                output_frames_gen: 0,
+                end_of_input: 0, // FIXME
+                src_ratio: self.ratio as f64,
+            };
+            unsafe {
+                if libsamplerate::samplerate::src_process(self.state, &mut src) > 0 {
+                    panic!("libsamplerate failed");
+                }
+                self.buffer_resampled.set_len(src.output_frames_gen as usize);
+            }
+            self.buffer.splice(0..src.input_frames_used as usize, std::iter::empty());
+
+            if self.buffer_resampled.len() == 0 {
+                // libsamplerate gave us nothing this time, try again
+                continue;
+            }
+
+            // reset our counter
+            self.buffer_next = 0;
+        }
+
+        let v = self.buffer_resampled[self.buffer_next].clone();
+        self.buffer_next += 1;
+        Some(v)
+    }
+    fn rate(&self) -> f32 {
+        self.rate
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Take<S> {
     signal: S,
     duration: usize,

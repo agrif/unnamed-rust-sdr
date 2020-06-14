@@ -103,6 +103,10 @@ fn main() -> std::io::Result<()> {
     } else {
         if true {
             let device = rodio::default_output_device().unwrap();
+            use rodio::DeviceTrait;
+            let output_rate = device.default_output_format().unwrap().sample_rate.0;
+            println!("resampling to {:?}", output_rate);
+            let fm = fm.resample(output_rate as f32);
             let source = fm.map(|s| s as f32).iter();
             let sink = rodio::Sink::new(&device);
             sink.append(source);
