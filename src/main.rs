@@ -94,7 +94,7 @@ fn main() -> std::io::Result<()> {
 
     let fm = fm.map(|s| s / 1000000.0);
 
-    if true {
+    if false {
         let plt = plot::Plot::new();
         plt.plot(0, 0, sig.take(0.01).enumerate());
         plt.plot(1, 0, sigp.take(0.01).enumerate());
