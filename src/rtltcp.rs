@@ -113,7 +113,7 @@ impl RtlTcpConnection {
 
     pub fn listen(self) -> RtlTcpSignal {
         RtlTcpSignal {
-            rate: self.rate as f64,
+            rate: self.rate as f32,
             conn: self,
         }
     }
@@ -122,19 +122,19 @@ impl RtlTcpConnection {
 #[derive(Debug)]
 pub struct RtlTcpSignal {
     conn: RtlTcpConnection,
-    rate: f64,
+    rate: f32,
 }
 
 impl Signal for RtlTcpSignal {
-    type Sample = num::Complex<f64>;
+    type Sample = num::Complex<f32>;
     fn next(&mut self) -> Option<Self::Sample> {
         self.conn.read().ok()
             .map(|iq| num::Complex::new(
-                (iq.re as f64 - 128.0) / 128.0,
-                (iq.im as f64 - 128.0) / 128.0,
+                (iq.re as f32 - 128.0) / 128.0,
+                (iq.im as f32 - 128.0) / 128.0,
             ))
     }
-    fn rate(&self) -> f64 {
+    fn rate(&self) -> f32 {
         self.rate
     }
 }

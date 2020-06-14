@@ -3,7 +3,7 @@ use crate::fir::{Convolve, IntoFir};
 pub trait Signal {
     type Sample;
     fn next(&mut self) -> Option<Self::Sample>;
-    fn rate(&self) -> f64;
+    fn rate(&self) -> f32;
 
     fn enumerate(self) -> Enumerate<Self> where Self: Sized {
         Enumerate::new(self)
@@ -46,7 +46,7 @@ pub trait Signal {
         Map::new(self, f)
     }
 
-    fn take(self, duration: f64) -> Take<Self>
+    fn take(self, duration: f32) -> Take<Self>
     where
         Self: Sized,
     {

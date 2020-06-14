@@ -3,7 +3,7 @@ use std::ops::{AddAssign, Mul};
 use num::Zero;
 
 pub trait IntoFir<C> {
-    fn into_fir<A>(self, rate: f64) -> Fir<C, A> where A: Convolve<C>;
+    fn into_fir<A>(self, rate: f32) -> Fir<C, A> where A: Convolve<C>;
 }
 
 pub trait Convolve<C>: Zero {
@@ -51,14 +51,23 @@ impl<C, A> Fir<C, A> where A: Convolve<C> {
     }
 }
 
+impl<C, B> IntoFir<C> for Fir<C, B> {
+    fn into_fir<A>(self, _rate: f32) -> Fir<C, A> where A: Convolve<C> {
+        Fir::new(self.coef)
+    }
+}
+
 impl<C> IntoFir<C> for Vec<C> {
-    fn into_fir<A>(self, _rate: f64) -> Fir<C, A> where A: Convolve<C> {
+    fn into_fir<A>(self, _rate: f32) -> Fir<C, A> where A: Convolve<C> {
         Fir::new(self)
     }
 }
 
 impl<'a, C> IntoFir<C> for &'a [C] where C: Clone {
-    fn into_fir<A>(self, _rate: f64) -> Fir<C, A> where A: Convolve<C> {
+    fn into_fir<A>(self, _rate: f32) -> Fir<C, A> where A: Convolve<C> {
         Fir::new(self.to_owned())
     }
 }
+
+mod derivative;
+pub use derivative::*;

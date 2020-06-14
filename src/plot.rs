@@ -10,7 +10,7 @@ pub struct Plot<'a> {
 }
 
 pub trait Plottable: Sized {
-    fn plot<'a>(plot: &'a Plot<'a>, data: &[(f64, Self)]) -> Axes2D<'a>;
+    fn plot<'a>(plot: &'a Plot<'a>, data: &[(f32, Self)]) -> Axes2D<'a>;
 }
 
 impl<'a> Plot<'a> {
@@ -34,10 +34,10 @@ impl<'a> Plot<'a> {
 
     pub fn plot<I, A>(&'a self, row: u32, col: u32, iter: I)
     where
-        I: Iterator<Item=(f64, A)>,
+        I: Iterator<Item=(f32, A)>,
         A: Plottable,
     {
-        let data: Vec<(f64, A)> = iter.collect();
+        let data: Vec<(f32, A)> = iter.collect();
         let ax = Plottable::plot(&self, &data);
         self.plot_axes(row, col, ax);
     }
@@ -75,21 +75,21 @@ impl<'a> Plot<'a> {
     }
 }
 
-impl Plottable for f64 {
-    fn plot<'a>(plot: &'a Plot<'a>, data: &[(f64, Self)]) -> Axes2D<'a> {
-        let x = plot.add_data(data, |t| t.0);
-        let y = plot.add_data(data, |t| t.1);
+impl Plottable for f32 {
+    fn plot<'a>(plot: &'a Plot<'a>, data: &[(f32, Self)]) -> Axes2D<'a> {
+        let x = plot.add_data(data, |t| t.0 as f64);
+        let y = plot.add_data(data, |t| t.1 as f64);
         Axes2D::new()
             .xlabel("t")
             .add(Line2D::new("value").data(x, y))
     }
 }
 
-impl Plottable for num::Complex<f64> {
-    fn plot<'a>(plot: &'a Plot<'a>, data: &[(f64, Self)]) -> Axes2D<'a> {
-        let x = plot.add_data(data, |t| t.0);
-        let re = plot.add_data(data, |t| t.1.re);
-        let im = plot.add_data(data, |t| t.1.im);
+impl Plottable for num::Complex<f32> {
+    fn plot<'a>(plot: &'a Plot<'a>, data: &[(f32, Self)]) -> Axes2D<'a> {
+        let x = plot.add_data(data, |t| t.0 as f64);
+        let re = plot.add_data(data, |t| t.1.re as f64);
+        let im = plot.add_data(data, |t| t.1.im as f64);
         Axes2D::new()
             .xlabel("t")
             .add(Line2D::new("Re").data(x, re))

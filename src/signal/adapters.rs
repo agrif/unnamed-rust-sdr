@@ -46,13 +46,13 @@ where
         }
         None
     }
-    fn rate(&self) -> f64 {
+    fn rate(&self) -> f32 {
         self.signal.rate()
     }
 }
 
 impl<S> Iterator for Enumerate<S> where S: Signal {
-    type Item = (f64, S::Sample);
+    type Item = (f32, S::Sample);
     fn next(&mut self) -> Option<Self::Item> {
         // unwrap is safe: times is infinite
         self.signal.next().map(|v| (self.times.next().unwrap(), v))
@@ -117,7 +117,7 @@ where
     fn next(&mut self) -> Option<Self::Sample> {
         self.signal.next().map(|x| (self.f)(x))
     }
-    fn rate(&self) -> f64 {
+    fn rate(&self) -> f32 {
         self.signal.rate()
     }
 }
@@ -129,7 +129,7 @@ pub struct Take<S> {
 }
 
 impl<S> Take<S> where S: Signal {
-    pub(super) fn new(signal: S, duration: f64) -> Self {
+    pub(super) fn new(signal: S, duration: f32) -> Self {
         Take {
             duration: (signal.rate() * duration).round() as usize,
             signal,
@@ -147,7 +147,7 @@ impl<S> Signal for Take<S> where S: Signal {
             None
         }
     }
-    fn rate(&self) -> f64 {
+    fn rate(&self) -> f32 {
         self.signal.rate()
     }
 }
