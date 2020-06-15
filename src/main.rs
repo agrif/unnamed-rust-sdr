@@ -73,8 +73,10 @@ fn main() -> std::io::Result<()> {
         .frequency((value_t_or_exit!(matches, "FREQ", f32) * 1000000.0) as u32);
 
     let fm = rtl.listen()?;
+    let fm = fm.pll(100000.0).map(move |r| r.output);
     let fm = ArgDSignal::new(fm);
 
+    /*
     //let firsize = (fm.rate() / 44100.0).round() as usize;
     //let fir = vec![1.0 / firsize as f32; firsize];
     let firb = 44100.0 / 2.0;
@@ -90,9 +92,9 @@ fn main() -> std::io::Result<()> {
         };
         filt / firrate
     });
-    let fm = fm.filter(fir.collect::<Vec<f32>>());
+    let fm = fm.filter(fir.collect::<Vec<f32>>());*/
 
-    let fm = fm.map(|s| s / 1000000.0);
+    let fm = fm.map(|s| s / 2000000.0);
 
     if false {
         let plt = plot::Plot::new();

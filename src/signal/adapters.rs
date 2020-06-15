@@ -3,6 +3,8 @@ use super::times::Times;
 use crate::fir::{Fir, IntoFir, Convolve};
 use crate::resample;
 
+use std::collections::VecDeque;
+
 #[derive(Debug, Clone)]
 pub struct Enumerate<S> {
     signal: S,
@@ -124,6 +126,64 @@ where
 }
 
 #[derive(Clone, Debug)]
+pub struct PllState<A> {
+    pub phase: A,
+    pub frequency: A,
+    pub phase_error: A,
+    pub input: num::Complex<A>,
+    pub output: num::Complex<A>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Pll<S> {
+    signal: S,
+    alpha: f32,
+    beta: f32,
+    phase: f32,
+    frequency: f32,
+}
+
+impl<S> Pll<S> where S: Signal<Sample=num::Complex<f32>> {
+    pub(super) fn new(signal: S, bandwidth: f32) -> Self {
+        // FIXME is alpha relative to sample rate or nyquist frequency??
+        let alpha = bandwidth / signal.rate();
+        Pll {
+            signal,
+            alpha,
+            beta: 0.5 * alpha * alpha,
+            phase: 0.0,
+            frequency: 0.0,
+        }
+    }
+}
+
+impl<S> Signal for Pll<S> where S: Signal<Sample=num::Complex<f32>> {
+    type Sample = PllState<f32>;
+    fn next(&mut self) -> Option<Self::Sample> {
+        if let Some(input) = self.signal.next() {
+            let output = num::Complex::from_polar(&1.0, &self.phase);
+            let phase_error = (input * output.conj()).arg();
+            self.phase += self.alpha * phase_error;
+            self.frequency += self.beta * phase_error;
+            self.phase += self.frequency;
+
+            Some(PllState {
+                phase: self.phase,
+                frequency: self.frequency * self.signal.rate(),
+                phase_error,
+                input,
+                output,
+            })
+        } else {
+            None
+        }
+    }
+    fn rate(&self) -> f32 {
+        self.signal.rate()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Resample<S: Signal> {
     signal: S,
     sr: resample::SampleRate<S::Sample>,
@@ -234,5 +294,66 @@ impl<S> Signal for Take<S> where S: Signal {
     }
     fn rate(&self) -> f32 {
         self.signal.rate()
+    }
+}
+
+#[derive(Debug)]
+pub struct TeeBuffer<S, A> {
+    backlog: VecDeque<A>,
+    signal: S,
+    owner: bool,
+}
+
+#[derive(Debug)]
+pub struct Tee<S: Signal> {
+    // we really, really want this to be Send, so
+    // this could almost certainly be done smarter
+    buffer: std::sync::Arc<std::sync::Mutex<TeeBuffer<S, S::Sample>>>,
+    id: bool,
+    rate: f32,
+}
+
+impl<S> Tee<S> where S: Signal {
+    pub(super) fn new(signal: S) -> (Tee<S>, Tee<S>) {
+        let buffer = TeeBuffer {
+            backlog: VecDeque::new(),
+            signal,
+            owner: false,
+        };
+        let t1 = Tee {
+            rate: buffer.signal.rate(),
+            buffer: std::sync::Arc::new(std::sync::Mutex::new(buffer)),
+            id: true,
+        };
+        let t2 = Tee {
+            rate: t1.rate,
+            buffer: t1.buffer.clone(),
+            id: false,
+        };
+        (t1, t2)
+    }
+}
+
+impl<S> Signal for Tee<S> where S: Signal, S::Sample: Clone {
+    type Sample = S::Sample;
+    fn next(&mut self) -> Option<Self::Sample> {
+        let mut buffer = self.buffer.lock().unwrap();
+        if buffer.owner == self.id {
+            match buffer.backlog.pop_front() {
+                None => (),
+                some => return some,
+            }
+        }
+        match buffer.signal.next() {
+            None => None,
+            Some(v) => {
+                buffer.backlog.push_back(v.clone());
+                buffer.owner = !self.id;
+                Some(v)
+            },
+        }
+    }
+    fn rate(&self) -> f32 {
+        self.rate
     }
 }
