@@ -8,6 +8,8 @@ pub mod fir;
 pub use fir::IntoFir;
 pub use fir::Fir;
 
+pub mod resample;
+
 pub mod rtltcp;
 
 pub mod plot;

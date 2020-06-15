@@ -1,6 +1,7 @@
 use super::Signal;
 use super::times::Times;
 use crate::fir::{Fir, IntoFir, Convolve};
+use crate::resample;
 
 #[derive(Debug, Clone)]
 pub struct Enumerate<S> {
@@ -125,68 +126,43 @@ where
 #[derive(Clone, Debug)]
 pub struct Resample<S: Signal> {
     signal: S,
-    state: *mut libsamplerate::SRC_STATE,
+    sr: resample::SampleRate<S::Sample>,
     rate: f32,
-    ratio: f32,
+    ratio: f64,
     buffer: Vec<S::Sample>,
     buffer_resampled: Vec<S::Sample>,
     buffer_size: usize,
     buffer_next: usize,
+    done: bool,
 }
 
-// the way we use state, this is safe
-unsafe impl<S> Send for Resample<S> where S: Signal {}
-
-pub trait Channels: Sized + Copy {
-    fn channels() -> usize;
-}
-
-impl Channels for f32 {
-    // in addition: this guarantees that casting from *Self to *f32 is fine
-    fn channels() -> usize {
-        1
-    }
-}
-
-impl<S> Resample<S> where S: Signal, S::Sample: Channels {
-    pub(super) fn new(signal: S, rate: f32) -> Self {
+impl<S> Resample<S> where S: Signal, S::Sample: resample::Resample {
+    pub(super) fn new(signal: S, typ: resample::ConverterType, rate: f32)
+                      -> Self
+    {
         let buffer_size = 4096;
         Resample {
             rate: rate,
-            state: unsafe {
-                let state = libsamplerate::samplerate::src_new(
-                    libsamplerate::src_sinc::SRC_SINC_BEST_QUALITY as i32,
-                    S::Sample::channels() as i32,
-                    std::ptr::null_mut(),
-                );
-                if state.is_null() {
-                    panic!("could not initialize libsamplerate");
-                }
-                state
-            },
-            ratio: rate / signal.rate(),
+            sr: resample::SampleRate::new(typ).unwrap(),
+            ratio: rate as f64 / signal.rate() as f64,
             signal,
             buffer_size,
             buffer: Vec::with_capacity(buffer_size),
             buffer_resampled: Vec::with_capacity(buffer_size),
             buffer_next: buffer_size,
+            done: false,
         }
     }
 }
 
-impl<S> Drop for Resample<S> where S: Signal {
-    fn drop(&mut self) {
-        if !self.state.is_null() {
-            unsafe {
-                self.state = libsamplerate::samplerate::src_delete(self.state);
-            }
-        }
-    }
-}
-
-impl<S> Signal for Resample<S> where S: Signal, S::Sample: Channels {
+impl<S> Signal for Resample<S> where S: Signal, S::Sample: resample::Resample {
     type Sample = S::Sample;
     fn next(&mut self) -> Option<Self::Sample> {
+        // early exit
+        if self.done {
+            return None
+        }
+
         while self.buffer_next >= self.buffer_resampled.len() {
             // refill our buffer
             while self.buffer.len() < self.buffer_size {
@@ -197,29 +173,21 @@ impl<S> Signal for Resample<S> where S: Signal, S::Sample: Channels {
                 }
             }
 
-            if self.buffer.len() == 0 {
-                // we tried -- nothing left
+            // resample buffer
+            let input_used = self.sr.process(
+                self.ratio,
+                &self.buffer,
+                &mut self.buffer_resampled,
+            ).unwrap();
+
+            // if we had 0 input (end of stream) and 0 output, we are done
+            if self.buffer.len() == 0 && self.buffer_resampled.len() == 0 {
+                self.done = true;
                 return None;
             }
 
-            // resample buffer
-            let mut src = libsamplerate::samplerate::SRC_DATA {
-                data_in: self.buffer.as_mut_ptr() as *mut f32,
-                data_out: self.buffer_resampled.as_mut_ptr() as *mut f32,
-                input_frames: self.buffer.len() as i32,
-                output_frames: self.buffer_resampled.capacity() as i32,
-                input_frames_used: 0,
-                output_frames_gen: 0,
-                end_of_input: 0, // FIXME
-                src_ratio: self.ratio as f64,
-            };
-            unsafe {
-                if libsamplerate::samplerate::src_process(self.state, &mut src) > 0 {
-                    panic!("libsamplerate failed");
-                }
-                self.buffer_resampled.set_len(src.output_frames_gen as usize);
-            }
-            self.buffer.splice(0..src.input_frames_used as usize, std::iter::empty());
+            // remove used data
+            self.buffer.splice(0..input_used, std::iter::empty());
 
             if self.buffer_resampled.len() == 0 {
                 // libsamplerate gave us nothing this time, try again

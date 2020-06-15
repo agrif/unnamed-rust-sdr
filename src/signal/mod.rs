@@ -1,4 +1,5 @@
 use crate::fir::{Convolve, IntoFir};
+use crate::resample;
 
 pub trait Signal {
     type Sample;
@@ -48,10 +49,19 @@ pub trait Signal {
 
     fn resample(self, rate: f32) -> Resample<Self>
     where
-        Self::Sample: Channels,
+        Self::Sample: resample::Resample,
         Self: Sized,
     {
-        Resample::new(self, rate)
+        self.resample_with(resample::ConverterType::SincBestQuality, rate)
+    }
+
+    fn resample_with(self, typ: resample::ConverterType, rate: f32)
+                     -> Resample<Self>
+    where
+        Self::Sample: resample::Resample,
+        Self: Sized,
+    {
+        Resample::new(self, typ, rate)
     }
 
     fn take(self, duration: f32) -> Take<Self>
