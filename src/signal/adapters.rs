@@ -178,7 +178,7 @@ impl<S> Signal for Pll<S> where S: Signal<Sample=num::Complex<f32>> {
 
             Some(PllState {
                 phase: self.phase,
-                frequency: self.frequency * self.signal.rate(),
+                frequency: self.frequency * self.signal.rate() / (2.0 * PI),
                 phase_error,
                 input,
                 output,
