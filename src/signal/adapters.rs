@@ -167,6 +167,15 @@ impl<S> Signal for Pll<S> where S: Signal<Sample=num::Complex<f32>> {
             self.frequency += self.beta * phase_error;
             self.phase += self.frequency;
 
+            // keep phase reasonable and manageable
+            use std::f32::consts::PI;
+            while self.phase > PI {
+                self.phase -= 2.0 * PI;
+            }
+            while self.phase <= -PI {
+                self.phase += 2.0 * PI;
+            }
+
             Some(PllState {
                 phase: self.phase,
                 frequency: self.frequency * self.signal.rate(),
