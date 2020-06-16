@@ -4,7 +4,7 @@ struct Deemphasis;
 
 impl IntoFir<f32> for Deemphasis {
     fn into_fir<A>(self, rate: f32) -> Fir<f32, A> where A: fir::Convolve<f32> {
-        let tau = 50.0 * 0.001 * 0.001; // 50 us
+        let tau = 75.0 * 0.001 * 0.001; // 75 us
         let size = (2.0 * tau * rate).round() as usize;
         let coef = (0..size).map(move |ti| {
             let t = ti as f32 / rate;
