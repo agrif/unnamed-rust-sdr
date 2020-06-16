@@ -9,7 +9,8 @@ pub struct RtlTcp {
     addr: Vec<SocketAddr>,
     rate: u32,
     frequency: u32,
-    // others: AGC, tuner gain, RTL-AGC
+    gain: Option<f32>,
+    rtlagc: bool,
 }
 
 impl RtlTcp {
@@ -20,6 +21,8 @@ impl RtlTcp {
             ],
             rate: 1800000,
             frequency: 100000000,
+            gain: None,
+            rtlagc: false,
         }
     }
 
@@ -42,9 +45,34 @@ impl RtlTcp {
         self
     }
 
+    // in dB. None means Auto
+    pub fn gain(mut self, gain: Option<f32>) -> Self {
+        self.gain = gain;
+        self
+    }
+
+    pub fn rtlagc(mut self, rtlagc: bool) -> Self {
+        self.rtlagc = rtlagc;
+        self
+    }
+
     pub fn listen(&self) -> Result<RtlTcpSignal> {
         let mut conn = RtlTcpConnection::connect(self.rate, &self.addr[..])?;
         conn.command(RtlTcpCommand::SetFrequency(self.frequency))?;
+        if let Some(gain) = self.gain {
+            // manual gain
+            conn.command(RtlTcpCommand::SetTunerGainMode(1))?;
+            let gain_bels = if gain > 0.0 {
+                (gain * 10.0).round() as u32
+            } else {
+                0
+            };
+            conn.command(RtlTcpCommand::SetTunerGain(gain_bels))?;
+        } else {
+            // automatic gain
+            conn.command(RtlTcpCommand::SetTunerGainMode(0))?;
+        }
+        conn.command(RtlTcpCommand::SetRtlAgc(self.rtlagc as u32))?;
         Ok(conn.listen())
     }
 }
@@ -68,7 +96,7 @@ pub enum RtlTcpCommand {
 impl RtlTcpConnection {
     pub fn connect<A: ToSocketAddrs>(rate: u32, addr: A) -> Result<Self> {
         let rawstream = std::net::TcpStream::connect(addr)?;
-        let mut stream = std::io::BufReader::new(rawstream);
+        let mut stream = std::io::BufReader::with_capacity(rate as usize, rawstream);
         let mut id = [0; 12];
         stream.read_exact(&mut id)?;
         let mut us = RtlTcpConnection {
