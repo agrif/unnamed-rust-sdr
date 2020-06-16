@@ -268,6 +268,37 @@ impl<S> Signal for Resample<S> where S: Signal, S::Sample: resample::Resample {
 }
 
 #[derive(Clone, Debug)]
+pub struct Skip<S> {
+    signal: S,
+    duration: usize,
+}
+
+impl<S> Skip<S> where S: Signal {
+    pub(super) fn new(signal: S, duration: f32) -> Self {
+        Skip {
+            duration: (signal.rate() * duration).round() as usize,
+            signal,
+        }
+    }
+}
+
+impl<S> Signal for Skip<S> where S: Signal {
+    type Sample = S::Sample;
+    fn next(&mut self) -> Option<Self::Sample> {
+        while self.duration > 0 {
+            self.duration -= 1;
+            if let None = self.signal.next() {
+                return None;
+            }
+        }
+        self.signal.next()
+    }
+    fn rate(&self) -> f32 {
+        self.signal.rate()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Take<S> {
     signal: S,
     duration: usize,

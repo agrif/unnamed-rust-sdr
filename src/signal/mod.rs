@@ -64,6 +64,13 @@ pub trait Signal {
         Resample::new(self, typ, rate)
     }
 
+    fn skip(self, duration: f32) -> Skip<Self>
+    where
+        Self: Sized,
+    {
+        Skip::new(self, duration)
+    }
+
     fn take(self, duration: f32) -> Take<Self>
     where
         Self: Sized,
