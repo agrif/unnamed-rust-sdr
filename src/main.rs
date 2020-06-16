@@ -1,5 +1,19 @@
 use sdr::*;
 
+struct Deemphasis;
+
+impl IntoFir<f32> for Deemphasis {
+    fn into_fir<A>(self, rate: f32) -> Fir<f32, A> where A: fir::Convolve<f32> {
+        let tau = 50.0 * 0.001 * 0.001; // 50 us
+        let size = (2.0 * tau * rate).round() as usize;
+        let coef = (0..size).map(move |ti| {
+            let t = ti as f32 / rate;
+            (-t / tau).exp() / (tau * rate)
+        });
+        Fir::new(coef.collect())
+    }
+}
+
 fn main() -> std::io::Result<()> {
     let matches = clap::App::new("sdr fm")
         .about("listen to fm radio via rtl tcp")
@@ -14,43 +28,44 @@ fn main() -> std::io::Result<()> {
              .index(2))
         .get_matches();
 
-    let rate = 1800000 / 1;
+    let rate = 1800000 / 6;
     use clap::value_t_or_exit;
     let rtl = rtltcp::RtlTcp::new()
         .address(matches.value_of("ADDR").unwrap())
         .rate(rate)
-        .gain(Some(100.0))
+        .gain(None)
+        .rtlagc(true)
         .frequency((value_t_or_exit!(matches, "FREQ", f32) * 1000000.0) as u32);
 
     if false {
         let (fmraw, fm) = rtl.listen()?.tee();
-        let (fmpll, fm) = fm.pll(100000.0).tee();
+        let (fmpll, fm) = fm.pll(200000.0).tee();
         let fmpll = fmpll.map(|r| r.output);
-        let fm = fm.map(|r| r.frequency / 2000000.0);
+        let fm = fm.map(|r| r.frequency / 75000.0);
         let fm = fm.resample_with(resample::ConverterType::Linear, 48000.0);
+        let fm = fm.filter(Deemphasis);
 
         let plt = plot::Plot::new();
-        plt.plot(0, 0, fmraw.skip(0.01).take(0.005).enumerate());
-        plt.plot(1, 0, fmpll.skip(0.01).take(0.005).enumerate());
-        plt.plot(2, 0, fm.skip(0.01).take(0.005).enumerate());
+        plt.plot(0, 0, fmraw.skip(1.0).take(0.005).enumerate());
+        plt.plot(1, 0, fmpll.skip(1.0).take(0.005).enumerate());
+        plt.plot(2, 0, fm.skip(1.0).take(1.0).enumerate());
         plt.show()?;
     } else {
         let fm = rtl.listen()?;
-        let fm = fm.pll(100000.0).map(|r| r.frequency / 2000000.0);
+        let fm = fm.pll(200000.0).map(|r| r.frequency / 75000.0);
+        let fm = fm.resample_with(resample::ConverterType::Linear, 48000.0);
+        let fm = fm.filter(Deemphasis);
         if true {
             let device = rodio::default_output_device().unwrap();
-            use rodio::DeviceTrait;
-            let output_rate = device.default_output_format().unwrap().sample_rate.0;
-            println!("resampling to {:?}", output_rate);
-            let fm = fm.resample_with(resample::ConverterType::Linear, output_rate as f32);
             let source = fm.iter();
             let sink = rodio::Sink::new(&device);
+            sink.set_volume(0.2); // inexplicably, rodio clips. so...
             sink.append(source);
             sink.sleep_until_end();
         } else {
             let spec = hound::WavSpec {
                 channels: 1,
-                sample_rate: rate,
+                sample_rate: fm.rate() as u32,
                 bits_per_sample: 16,
                 sample_format: hound::SampleFormat::Int,
             };
