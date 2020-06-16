@@ -25,7 +25,7 @@ impl<A> Clone for SampleRate<A> {
 unsafe impl<A> Send for SampleRate<A> {}
 
 // states that Self is memory-identical to [f32; channels]
-pub trait Resample: Clone {
+pub unsafe trait Resample: Clone {
     fn channels() -> usize;
 }
 
@@ -267,10 +267,10 @@ impl Error {
     }
 }
 
-impl Resample for f32 {
+unsafe impl Resample for f32 {
     fn channels() -> usize { 1 }
 }
 
-impl<F> Resample for num::Complex<F> where F: Resample {
+unsafe impl<F> Resample for num::Complex<F> where F: Resample {
     fn channels() -> usize { 2 * F::channels() }
 }
