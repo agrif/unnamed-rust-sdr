@@ -35,7 +35,7 @@ impl<A> SampleRate<A> where A: Resample {
         let state = unsafe {
             let staten = samplerate::src_new(
                 typ.to_c(),
-                A::channels() as i32,
+                A::channels() as libc::c_int,
                 &mut errcode,
             );
             Error::result(staten, errcode)
@@ -47,10 +47,10 @@ impl<A> SampleRate<A> where A: Resample {
                    -> Result<usize>
     {
         let mut cmd = samplerate::SRC_DATA {
-            data_in: input.as_ptr() as *const f32,
-            data_out: output.as_mut_ptr() as *mut f32,
-            input_frames: input.len() as i32,
-            output_frames: output.capacity() as i32,
+            data_in: input.as_ptr() as *const libc::c_float,
+            data_out: output.as_mut_ptr() as *mut libc::c_float,
+            input_frames: input.len() as libc::c_long,
+            output_frames: output.capacity() as libc::c_long,
             input_frames_used: 0,
             output_frames_gen: 0,
             end_of_input: if input.len() == 0 { 1 } else { 0 },
@@ -92,7 +92,8 @@ impl<A> SampleRate<A> {
 
     pub fn set_ratio(&mut self, ratio: f64) -> Result<()> {
         unsafe {
-            let errcode = samplerate::src_set_ratio(self.state, ratio);
+            let errcode = samplerate::src_set_ratio(self.state,
+                                                    ratio as libc::c_double);
             Error::result((), errcode)
         }
     }
@@ -135,7 +136,7 @@ impl ConverterType {
         cstr.to_str().unwrap() // assume libsamplerate uses valid utf-8
     }
 
-    fn to_c(&self) -> i32 {
+    fn to_c(&self) -> libc::c_int {
         use ConverterType::*;
         let code = match self {
             SincBestQuality => src_sinc::SRC_SINC_BEST_QUALITY,
@@ -144,7 +145,7 @@ impl ConverterType {
             ZeroOrderHold => src_sinc::SRC_ZERO_ORDER_HOLD,
             Linear => src_sinc::SRC_LINEAR,
         };
-        code as i32
+        code as libc::c_int
     }
 }
 
@@ -191,7 +192,7 @@ impl std::error::Error for Error {
 
 impl Error {
     pub fn description(&self) -> &'static str {
-        let code = self.to_c() as i32;
+        let code = self.to_c();
         let cstr = unsafe {
             std::ffi::CStr::from_ptr(samplerate::src_strerror(code))
         };
@@ -206,7 +207,7 @@ impl Error {
         }
     }
 
-    fn to_c(&self) -> i32 {
+    fn to_c(&self) -> libc::c_int {
         use Error::*;
         let code = match self {
             BadCallback => samplerate::SRC_ERR_BAD_CALLBACK,
@@ -233,10 +234,10 @@ impl Error {
             SizeIncompatibility => samplerate::SRC_ERR_SIZE_INCOMPATIBILITY,
             Unknown(err) => *err,
         };
-        code as i32
+        code as libc::c_int
     }
 
-    fn from_c(err: i32) -> Option<Self> {
+    fn from_c(err: libc::c_int) -> Option<Self> {
         use Error::*;
         match err as u32 {
             0 => None,
