@@ -1,4 +1,4 @@
-use crate::fir::{Convolve, IntoFir};
+use crate::filter::IntoFilter;
 use crate::resample;
 
 pub trait Signal {
@@ -18,13 +18,12 @@ pub trait Signal {
         FromIter::new(self.rate(), f(self.enumerate()))
     }
 
-    fn filter<F, C>(self, fir: F) -> Filter<Self, C>
+    fn filter<F>(self, filter: F) -> Filter<Self, F::Filter>
     where
-        F: IntoFir<C>,
-        Self::Sample: Convolve<C>,
+        F: IntoFilter<Self::Sample>,
         Self: Sized,
     {
-        Filter::new(self, fir)
+        Filter::new(self, filter)
     }
 
     fn iter(self) -> Iter<Self> where Self: Sized {

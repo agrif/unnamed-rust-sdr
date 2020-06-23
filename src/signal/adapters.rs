@@ -1,6 +1,6 @@
 use super::Signal;
 use super::times::Times;
-use crate::fir::{Fir, IntoFir, Convolve};
+use crate::filter;
 use crate::resample;
 
 use std::collections::VecDeque;
@@ -21,33 +21,35 @@ impl<S> Enumerate<S> where S: Signal {
 }
 
 #[derive(Debug, Clone)]
-pub struct Filter<S, C> where S: Signal {
+pub struct Filter<S, F> {
     signal: S,
-    fir: Fir<C, S::Sample>,
+    filter: F,
 }
 
-impl<S, C> Filter<S, C> where S: Signal, S::Sample: Convolve<C> {
-    pub(super) fn new<F>(signal: S, fir: F) -> Self where F: IntoFir<C> {
+impl<S, F> Filter<S, F>
+where
+    S: Signal,
+    F: filter::Filter<S::Sample>,
+{
+    pub(super) fn new<IF>(signal: S, fir: IF) -> Self
+    where
+        IF: filter::IntoFilter<S::Sample, Filter=F>,
+    {
         Filter {
-            fir: fir.into_fir(signal.rate()),
+            filter: fir.into_filter(signal.rate()),
             signal: signal,
         }
     }
 }
 
-impl<S, C> Signal for Filter<S, C>
+impl<S, F> Signal for Filter<S, F>
 where
     S: Signal,
-    S::Sample: Convolve<C>,
+    F: filter::Filter<S::Sample>,
 {
     type Sample = S::Sample;
     fn next(&mut self) -> Option<Self::Sample> {
-        while let Some(v) = self.signal.next() {
-            if let Some(r) = self.fir.apply(v) {
-                return Some(r)
-            }
-        }
-        None
+        self.signal.next().map(|v| self.filter.apply(v))
     }
     fn rate(&self) -> f32 {
         self.signal.rate()
@@ -118,7 +120,7 @@ where
 {
     type Sample = A;
     fn next(&mut self) -> Option<Self::Sample> {
-        self.signal.next().map(|x| (self.f)(x))
+        self.signal.next().map(&mut self.f)
     }
     fn rate(&self) -> f32 {
         self.signal.rate()

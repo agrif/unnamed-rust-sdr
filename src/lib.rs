@@ -5,9 +5,9 @@ pub mod signal;
 pub use signal::Signal;
 pub use signal::ComplexSignal;
 
-pub mod fir;
-pub use fir::IntoFir;
-pub use fir::Fir;
+pub mod filter;
+pub use filter::IntoFilter;
+pub use filter::Filter;
 
 pub mod resample;
 

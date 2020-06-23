@@ -275,3 +275,7 @@ unsafe impl Resample for f32 {
 unsafe impl<F> Resample for num::Complex<F> where F: Resample {
     fn channels() -> usize { 2 * F::channels() }
 }
+
+unsafe impl<A, B> Resample for (A, B) where A: Resample, B: Resample {
+    fn channels() -> usize { A::channels() + B::channels() }
+}

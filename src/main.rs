@@ -1,19 +1,5 @@
 use sdr::*;
 
-struct Deemphasis;
-
-impl IntoFir<f32> for Deemphasis {
-    fn into_fir<A>(self, rate: f32) -> Fir<f32, A> where A: fir::Convolve<f32> {
-        let tau = 75.0 * 0.001 * 0.001; // 75 us
-        let size = (2.0 * tau * rate).round() as usize;
-        let coef = (0..size).map(move |ti| {
-            let t = ti as f32 / rate;
-            (-t / tau).exp() / (tau * rate)
-        });
-        Fir::new(coef.collect())
-    }
-}
-
 fn main() -> std::io::Result<()> {
     let matches = clap::App::new("sdr fm")
         .about("listen to fm radio via rtl tcp")
@@ -43,7 +29,9 @@ fn main() -> std::io::Result<()> {
         let fmpll = fmpll.map(|r| r.output);
         let fm = fm.map(|r| r.frequency / 75000.0);
         let fm = fm.resample_with(resample::ConverterType::Linear, 48000.0);
-        let fm = fm.filter(Deemphasis);
+        let fm = fm.filter(
+            filter::Biquadratic::Lr(1.0 / (75.0 * 0.001 * 0.001))
+        );
 
         let plt = plot::Plot::new();
         plt.plot(0, 0, fmraw.skip(1.0).take(0.005).enumerate());
@@ -54,7 +42,9 @@ fn main() -> std::io::Result<()> {
         let fm = rtl.listen()?;
         let fm = fm.pll(200000.0).map(|r| r.frequency / 75000.0);
         let fm = fm.resample_with(resample::ConverterType::Linear, 48000.0);
-        let fm = fm.filter(Deemphasis);
+        let fm = fm.filter(
+            filter::Biquadratic::Lr(1.0 / (75.0 * 0.001 * 0.001))
+        );
         if true {
             let device = rodio::default_output_device().unwrap();
             let source = fm.iter();

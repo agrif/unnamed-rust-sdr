@@ -1,4 +1,4 @@
-use super::{Convolve, Fir, IntoFir};
+use super::{Convolve, Fir, IntoFilter};
 
 use nalgebra::{DMatrix, DVector};
 use special_fun::FloatSpecial;
@@ -48,7 +48,9 @@ impl Derivative {
                 self.make_coef_from_taps(-size + 1, 0, deriv)
             },
         };
-        coef.into_iter().map(|c| c * factor).collect()
+        let mut vec: Vec<f32> = coef.into_iter().map(|c| c * factor).collect();
+        vec.reverse();
+        vec
     }
 
     fn make_coef_from_taps(&self, left: isize, right: isize, deriv: usize)
@@ -69,8 +71,9 @@ impl Derivative {
     }
 }
 
-impl IntoFir<f32> for Derivative {
-    fn into_fir<A>(self, rate: f32) -> Fir<f32, A> where A: Convolve<f32> {
+impl<A> IntoFilter<A> for Derivative where A: Convolve<f32 >{
+    type Filter = Fir<f32, A>;
+    fn into_filter(self, rate: f32) -> Self::Filter {
         Fir::new(self.make_coef(rate))
     }
 }
