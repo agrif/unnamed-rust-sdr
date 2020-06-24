@@ -1,3 +1,5 @@
+use super::Signal;
+
 #[derive(Debug, Clone)]
 pub struct Times {
     step: usize,
@@ -10,11 +12,14 @@ impl Times {
     }
 }
 
-impl Iterator for Times {
-    type Item = f32;
-    fn next(&mut self) -> Option<Self::Item> {
+impl Signal for Times {
+    type Sample = f32;
+    fn next(&mut self) -> Option<Self::Sample> {
         let now = self.step;
         self.step += 1;
         Some((now as f32) / self.rate)
+    }
+    fn rate(&self) -> f32 {
+        self.rate
     }
 }
