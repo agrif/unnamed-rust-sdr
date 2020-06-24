@@ -38,7 +38,8 @@ where
 }
 
 impl<C, A> Filter<A> for Biquad<C, A> where A: Convolve<C> {
-    fn apply(&mut self, value: A) -> A {
+    type Output = A;
+    fn apply(&mut self, value: A) -> Self::Output {
         let mut out = A::zero();
         out.accumulate(&value, &self.b0);
         out.accumulate(&self.x1, &self.b1);

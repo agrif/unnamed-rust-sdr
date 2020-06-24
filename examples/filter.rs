@@ -6,6 +6,7 @@ fn freq_response<F>(rate: f32, df: f32, range: std::ops::Range<f32>,
                         impl Iterator<Item=(f32, f32)>)
 where
     F: IntoFilter<Complex<f32>>,
+    F::Filter: Filter<Complex<f32>, Output=Complex<f32>>,
 {
     let mut filter = filter.into_filter(rate);
     let sweep = signal::freq_sweep(rate, df, true, range)
@@ -29,6 +30,8 @@ fn plot_filter<F>(rate: f32, range: std::ops::Range<f32>, df: f32, usedb: bool, 
                   -> std::io::Result<()>
 where
     F: Clone + IntoFilter<f32> + IntoFilter<Complex<f32>>,
+<F as IntoFilter<Complex<f32>>>::Filter: Filter<Complex<f32>, Output=Complex<f32>>,
+<F as IntoFilter<f32>>::Filter: Filter<f32, Output=f32>,
 {
     let plt = plot::Plot::new();
     let (mag, phase) = freq_response(rate, df, range, usedb, filter.clone());

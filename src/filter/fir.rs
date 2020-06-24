@@ -18,7 +18,8 @@ impl<C, A> Fir<C, A> where A: Convolve<C> {
 }
 
 impl<C, A> Filter<A> for Fir<C, A> where A: Convolve<C> {
-    fn apply(&mut self, value: A) -> A {
+    type Output = A;
+    fn apply(&mut self, value: A) -> Self::Output {
         self.buffer.pop_back();
         self.buffer.push_front(value);
 

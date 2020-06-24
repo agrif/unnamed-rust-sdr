@@ -3,7 +3,6 @@ pub use num::Complex;
 
 pub mod signal;
 pub use signal::Signal;
-pub use signal::ComplexSignal;
 
 pub mod filter;
 pub use filter::IntoFilter;

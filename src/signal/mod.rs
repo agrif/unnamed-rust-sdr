@@ -85,17 +85,6 @@ pub trait Signal {
     }
 }
 
-pub trait ComplexSignal: Signal<Sample=num::Complex<f32>> {
-    fn pll(self, bandwidth: f32) -> Pll<Self>
-    where
-        Self: Sized,
-    {
-        Pll::new(self, bandwidth)
-    }
-}
-
-impl<S> ComplexSignal for S where S: Signal<Sample=num::Complex<f32>> {}
-
 mod times;
 
 mod sources;

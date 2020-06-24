@@ -47,7 +47,7 @@ where
     S: Signal,
     F: filter::Filter<S::Sample>,
 {
-    type Sample = S::Sample;
+    type Sample = F::Output;
     fn next(&mut self) -> Option<Self::Sample> {
         self.signal.next().map(|v| self.filter.apply(v))
     }
@@ -121,73 +121,6 @@ where
     type Sample = A;
     fn next(&mut self) -> Option<Self::Sample> {
         self.signal.next().map(&mut self.f)
-    }
-    fn rate(&self) -> f32 {
-        self.signal.rate()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct PllState<A> {
-    pub phase: A,
-    pub frequency: A,
-    pub phase_error: A,
-    pub input: num::Complex<A>,
-    pub output: num::Complex<A>,
-}
-
-#[derive(Clone, Debug)]
-pub struct Pll<S> {
-    signal: S,
-    alpha: f32,
-    beta: f32,
-    phase: f32,
-    frequency: f32,
-}
-
-impl<S> Pll<S> where S: Signal<Sample=num::Complex<f32>> {
-    pub(super) fn new(signal: S, bandwidth: f32) -> Self {
-        // FIXME is alpha relative to sample rate or nyquist frequency??
-        let alpha = bandwidth / signal.rate();
-        Pll {
-            signal,
-            alpha,
-            beta: 0.5 * alpha * alpha,
-            phase: 0.0,
-            frequency: 0.0,
-        }
-    }
-}
-
-impl<S> Signal for Pll<S> where S: Signal<Sample=num::Complex<f32>> {
-    type Sample = PllState<f32>;
-    fn next(&mut self) -> Option<Self::Sample> {
-        if let Some(input) = self.signal.next() {
-            let output = num::Complex::from_polar(&1.0, &self.phase);
-            let phase_error = (input * output.conj()).arg();
-            self.phase += self.alpha * phase_error;
-            self.frequency += self.beta * phase_error;
-            self.phase += self.frequency;
-
-            // keep phase reasonable and manageable
-            use std::f32::consts::PI;
-            while self.phase > PI {
-                self.phase -= 2.0 * PI;
-            }
-            while self.phase <= -PI {
-                self.phase += 2.0 * PI;
-            }
-
-            Some(PllState {
-                phase: self.phase,
-                frequency: self.frequency * self.signal.rate() / (2.0 * PI),
-                phase_error,
-                input,
-                output,
-            })
-        } else {
-            None
-        }
     }
     fn rate(&self) -> f32 {
         self.signal.rate()
