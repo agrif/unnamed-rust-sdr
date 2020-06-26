@@ -17,5 +17,8 @@ clap = "2.33"
 nalgebra = "0.21"
 special-fun = "0.2"
 libc = "0.2"
-libsamplerate = "0.1"
 rustfft = "3.0"
+
+[dependencies.libsamplerate-sys]
+git = "https://github.com/agrif/libsamplerate-sys"
+branch = "cmake"

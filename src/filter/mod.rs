@@ -39,6 +39,7 @@ where
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identity;
 
 impl<A> IntoFilter<A> for Identity {

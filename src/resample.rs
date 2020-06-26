@@ -1,8 +1,8 @@
-use libsamplerate::*;
+use libsamplerate_sys::*;
 
 pub fn version() -> &'static str {
     let cstr = unsafe {
-        std::ffi::CStr::from_ptr(samplerate::src_get_version())
+        std::ffi::CStr::from_ptr(src_get_version())
     };
     cstr.to_str().unwrap() // assume libsamplerate uses valid utf-8
 }
@@ -33,7 +33,7 @@ impl<A> SampleRate<A> where A: Resample {
     pub fn new(typ: ConverterType) -> Result<Self> {
         let mut errcode = 0;
         let state = unsafe {
-            let staten = samplerate::src_new(
+            let staten = src_new(
                 typ.to_c(),
                 A::channels() as libc::c_int,
                 &mut errcode,
@@ -46,7 +46,7 @@ impl<A> SampleRate<A> where A: Resample {
     pub fn process(&mut self, ratio: f64, input: &[A], output: &mut Vec<A>)
                    -> Result<usize>
     {
-        let mut cmd = samplerate::SRC_DATA {
+        let mut cmd = SRC_DATA {
             data_in: input.as_ptr() as *const libc::c_float,
             data_out: output.as_mut_ptr() as *mut libc::c_float,
             input_frames: input.len() as libc::c_long,
@@ -54,11 +54,11 @@ impl<A> SampleRate<A> where A: Resample {
             input_frames_used: 0,
             output_frames_gen: 0,
             end_of_input: if input.len() == 0 { 1 } else { 0 },
-            src_ratio: ratio,
+            src_ratio: ratio as libc::c_double,
         };
 
         unsafe {
-            let errcode = samplerate::src_process(self.state, &mut cmd);
+            let errcode = src_process(self.state, &mut cmd);
             Error::result((), errcode)?;
             output.set_len(cmd.output_frames_gen as usize);
         }
@@ -70,7 +70,7 @@ impl<A> SampleRate<A> where A: Resample {
 impl<A> SampleRate<A> {
     pub fn reset(&mut self) -> Result<()> {
         unsafe {
-            let errcode = samplerate::src_reset(self.state);
+            let errcode = src_reset(self.state);
             Error::result((), errcode)
         }
     }
@@ -78,7 +78,7 @@ impl<A> SampleRate<A> {
     pub fn try_clone(&self) ->  Result<Self> {
         let state = unsafe {
             let mut errcode = 0;
-            let staten = samplerate::src_clone(self.state, &mut errcode);
+            let staten = src_clone(self.state, &mut errcode);
             Error::result(staten, errcode)
         }?;
         Ok(SampleRate { state, _marker: std::marker::PhantomData })
@@ -86,14 +86,13 @@ impl<A> SampleRate<A> {
 
     pub fn channels(&self) -> usize {
         unsafe {
-            samplerate::src_get_channels(self.state) as usize
+            src_get_channels(self.state) as usize
         }
     }
 
     pub fn set_ratio(&mut self, ratio: f64) -> Result<()> {
         unsafe {
-            let errcode = samplerate::src_set_ratio(self.state,
-                                                    ratio as libc::c_double);
+            let errcode = src_set_ratio(self.state, ratio as libc::c_double);
             Error::result((), errcode)
         }
     }
@@ -103,7 +102,7 @@ impl<A> Drop for SampleRate<A> {
     fn drop(&mut self) {
         if !self.state.is_null() {
             unsafe {
-                self.state = samplerate::src_delete(self.state);
+                self.state = src_delete(self.state);
             }
         }
 
@@ -123,7 +122,7 @@ impl ConverterType {
     pub fn name(&self) -> &'static str {
         let code = self.to_c() as i32;
         let cstr = unsafe {
-            std::ffi::CStr::from_ptr(samplerate::src_get_name(code))
+            std::ffi::CStr::from_ptr(src_get_name(code))
         };
         cstr.to_str().unwrap() // assume libsamplerate uses valid utf-8
     }
@@ -131,7 +130,7 @@ impl ConverterType {
     pub fn description(&self) -> &'static str {
         let code = self.to_c() as i32;
         let cstr = unsafe {
-            std::ffi::CStr::from_ptr(samplerate::src_get_description(code))
+            std::ffi::CStr::from_ptr(src_get_description(code))
         };
         cstr.to_str().unwrap() // assume libsamplerate uses valid utf-8
     }
@@ -139,11 +138,11 @@ impl ConverterType {
     fn to_c(&self) -> libc::c_int {
         use ConverterType::*;
         let code = match self {
-            SincBestQuality => src_sinc::SRC_SINC_BEST_QUALITY,
-            SincMediumQuality => src_sinc::SRC_SINC_MEDIUM_QUALITY,
-            SincFastest => src_sinc::SRC_SINC_FASTEST,
-            ZeroOrderHold => src_sinc::SRC_ZERO_ORDER_HOLD,
-            Linear => src_sinc::SRC_LINEAR,
+            SincBestQuality => SRC_SINC_BEST_QUALITY,
+            SincMediumQuality => SRC_SINC_MEDIUM_QUALITY,
+            SincFastest => SRC_SINC_FASTEST,
+            ZeroOrderHold => SRC_ZERO_ORDER_HOLD,
+            Linear => SRC_LINEAR,
         };
         code as libc::c_int
     }
@@ -194,7 +193,7 @@ impl Error {
     pub fn description(&self) -> &'static str {
         let code = self.to_c();
         let cstr = unsafe {
-            std::ffi::CStr::from_ptr(samplerate::src_strerror(code))
+            std::ffi::CStr::from_ptr(src_strerror(code))
         };
         cstr.to_str().unwrap() // assume libsamplerate uses valid utf-8
     }
@@ -209,29 +208,30 @@ impl Error {
 
     fn to_c(&self) -> libc::c_int {
         use Error::*;
+        // for some reason libsamplerate-sys doesn't expose this.
         let code = match self {
-            BadCallback => samplerate::SRC_ERR_BAD_CALLBACK,
-            BadChannelCount => samplerate::SRC_ERR_BAD_CHANNEL_COUNT,
-            BadConverter => samplerate::SRC_ERR_BAD_CONVERTER,
-            BadData => samplerate::SRC_ERR_BAD_DATA,
-            BadDataPtr => samplerate::SRC_ERR_BAD_DATA_PTR,
-            BadInternalState => samplerate::SRC_ERR_BAD_INTERNAL_STATE,
-            BadMode => samplerate::SRC_ERR_BAD_MODE,
-            BadPrivPtr => samplerate::SRC_ERR_BAD_PRIV_PTR,
-            BadProcPtr => samplerate::SRC_ERR_BAD_PROC_PTR,
-            BadSincState => samplerate::SRC_ERR_BAD_SINC_STATE,
-            BadSrcRatio => samplerate::SRC_ERR_BAD_SRC_RATIO,
-            BadState => samplerate::SRC_ERR_BAD_STATE,
-            DataOverlap => samplerate::SRC_ERR_DATA_OVERLAP,
-            FilterLen => samplerate::SRC_ERR_FILTER_LEN,
-            MallocFailed => samplerate::SRC_ERR_MALLOC_FAILED,
-            NoPrivate => samplerate::SRC_ERR_NO_PRIVATE,
-            NoVariableRatio => samplerate::SRC_ERR_NO_VARIABLE_RATIO,
-            NullCallback => samplerate::SRC_ERR_NULL_CALLBACK,
-            ShiftBits => samplerate::SRC_ERR_SHIFT_BITS,
-            SincBadBufferLen => samplerate::SRC_ERR_SINC_BAD_BUFFER_LEN,
-            SincPrepareDataBadLen => samplerate::SRC_ERR_SINC_PREPARE_DATA_BAD_LEN,
-            SizeIncompatibility => samplerate::SRC_ERR_SIZE_INCOMPATIBILITY,
+            MallocFailed => 1,
+            BadState => 2,
+            BadData => 3,
+            BadDataPtr => 4,
+            NoPrivate => 5,
+            BadSrcRatio => 6,
+            BadProcPtr => 7,
+            ShiftBits => 8,
+            FilterLen => 9,
+            BadConverter => 10,
+            BadChannelCount => 11,
+            SincBadBufferLen => 12,
+            SizeIncompatibility => 13,
+            BadPrivPtr => 14,
+            BadSincState => 15,
+            DataOverlap => 16,
+            BadCallback => 17,
+            BadMode => 18,
+            NullCallback => 19,
+            NoVariableRatio => 20,
+            SincPrepareDataBadLen => 21,
+            BadInternalState => 22,
             Unknown(err) => *err,
         };
         code as libc::c_int
@@ -239,30 +239,31 @@ impl Error {
 
     fn from_c(err: libc::c_int) -> Option<Self> {
         use Error::*;
+        // for some reason libsamplerate-sys doesn't expose this.
         match err as u32 {
             0 => None,
-            samplerate::SRC_ERR_BAD_CALLBACK => Some(BadCallback),
-            samplerate::SRC_ERR_BAD_CHANNEL_COUNT => Some(BadChannelCount),
-            samplerate::SRC_ERR_BAD_CONVERTER => Some(BadConverter),
-            samplerate::SRC_ERR_BAD_DATA => Some(BadData),
-            samplerate::SRC_ERR_BAD_DATA_PTR => Some(BadDataPtr),
-            samplerate::SRC_ERR_BAD_INTERNAL_STATE => Some(BadInternalState),
-            samplerate::SRC_ERR_BAD_MODE => Some(BadMode),
-            samplerate::SRC_ERR_BAD_PRIV_PTR => Some(BadPrivPtr),
-            samplerate::SRC_ERR_BAD_PROC_PTR => Some(BadProcPtr),
-            samplerate::SRC_ERR_BAD_SINC_STATE => Some(BadSincState),
-            samplerate::SRC_ERR_BAD_SRC_RATIO => Some(BadSrcRatio),
-            samplerate::SRC_ERR_BAD_STATE => Some(BadState),
-            samplerate::SRC_ERR_DATA_OVERLAP => Some(DataOverlap),
-            samplerate::SRC_ERR_FILTER_LEN => Some(FilterLen),
-            samplerate::SRC_ERR_MALLOC_FAILED => Some(MallocFailed),
-            samplerate::SRC_ERR_NO_PRIVATE => Some(NoPrivate),
-            samplerate::SRC_ERR_NO_VARIABLE_RATIO => Some(NoVariableRatio),
-            samplerate::SRC_ERR_NULL_CALLBACK => Some(NullCallback),
-            samplerate::SRC_ERR_SHIFT_BITS => Some(ShiftBits),
-            samplerate::SRC_ERR_SINC_BAD_BUFFER_LEN => Some(SincBadBufferLen),
-            samplerate::SRC_ERR_SINC_PREPARE_DATA_BAD_LEN => Some(SincPrepareDataBadLen),
-            samplerate::SRC_ERR_SIZE_INCOMPATIBILITY => Some(SizeIncompatibility),
+            1 => Some(MallocFailed),
+            2 => Some(BadState),
+            3 => Some(BadData),
+            4 => Some(BadDataPtr),
+            5 => Some(NoPrivate),
+            6 => Some(BadSrcRatio),
+            7 => Some(BadProcPtr),
+            8 => Some(ShiftBits),
+            9 => Some(FilterLen),
+            10 => Some(BadConverter),
+            11 => Some(BadChannelCount),
+            12 => Some(SincBadBufferLen),
+            13 => Some(SizeIncompatibility),
+            14 => Some(BadPrivPtr),
+            15 => Some(BadSincState),
+            16 => Some(DataOverlap),
+            17 => Some(BadCallback),
+            18 => Some(BadMode),
+            19 => Some(NullCallback),
+            20 => Some(NoVariableRatio),
+            21 => Some(SincPrepareDataBadLen),
+            22 => Some(BadInternalState),
             other => Some(Unknown(other)),
         }
     }

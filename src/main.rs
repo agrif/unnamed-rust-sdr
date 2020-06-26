@@ -47,7 +47,7 @@ fn main() -> std::io::Result<()> {
 
     let fm = rtl.listen()?;
     let fm = fm.filter(pllf).map(|f| f.unwrap_or(0.0) / 75000.0);
-    let fm = fm.resample_with(resample::ConverterType::Linear, 48000.0 * 3.0);
+    let fm = fm.resample_with(resample::ConverterType::SincFastest, 48000.0 * 3.0);
 
     let deemph = filter::Biquadratic::Lr(1.0 / (75.0 * 0.001 * 0.001));
 
@@ -59,20 +59,26 @@ fn main() -> std::io::Result<()> {
         filter::Biquadratic::LowPass(20.0, 0.7),
     ).into_filter(fm.rate());
 
-    let mut monod = deemph.clone().into_filter(fm.rate());
-    let mut diffd = deemph.clone().into_filter(fm.rate());
     let fm = fm.map(move |v| {
-        let mono = monod.apply(v) * 0.5;
+        let mono = v * 0.5;
         let diff = if let Some(_) = pllpilot.apply(num::Complex::new(v, 0.0)) {
             let diffc = v / pllpilot.value.powi(2);
-            diffd.apply(diffc.re) * 0.5
+            diffc.re * 0.5
         } else {
             0.0
         };
-        (mono + diff, mono - diff)
+        (mono, diff)
     });
 
-    let fm = fm.resample_with(resample::ConverterType::Linear, 48000.0);
+    let fm = fm.resample_with(resample::ConverterType::SincBestQuality, 48000.0);
+
+    let mut monod = deemph.clone().into_filter(fm.rate());
+    let mut diffd = deemph.clone().into_filter(fm.rate());
+    let fm = fm.map(move |(monov, diffv)| {
+        let mono = monod.apply(monov);
+        let diff = diffd.apply(diffv);
+        (mono + diff, mono - diff)
+    });
 
     if let Some(outfile) = matches.value_of("output") {
         let spec = hound::WavSpec {
@@ -94,7 +100,7 @@ fn main() -> std::io::Result<()> {
         let device = rodio::default_output_device().unwrap();
         let source = fm.stereo();
         let sink = rodio::Sink::new(&device);
-        sink.set_volume(0.2); // inexplicably, rodio clips. so...
+        sink.set_volume(0.5); // inexplicably, rodio clips. so...
         sink.append(source);
         sink.sleep_until_end();
     }
