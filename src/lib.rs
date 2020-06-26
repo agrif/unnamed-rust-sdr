@@ -13,3 +13,5 @@ pub mod resample;
 pub mod rtltcp;
 
 pub mod plot;
+
+pub mod fft;

@@ -18,8 +18,8 @@ pub struct Pll<Loop, Output, Lock> {
     outputfilter: Output,
     lockfilter: Lock,
 
-    nphase: f32,
-    value: num::Complex<f32>,
+    pub nphase: f32,
+    pub value: num::Complex<f32>,
 }
 
 impl<Loop, Output, Lock> PllDesign<Loop, Output, Lock> {

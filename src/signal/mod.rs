@@ -70,6 +70,13 @@ pub trait Signal {
         Skip::new(self, duration)
     }
 
+    fn stereo(self) -> Stereo<Self>
+    where
+        Self: Sized,
+    {
+        Stereo::new(self)
+    }
+
     fn take(self, duration: f32) -> Take<Self>
     where
         Self: Sized,

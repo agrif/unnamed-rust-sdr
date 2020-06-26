@@ -242,6 +242,50 @@ impl<S> Signal for Skip<S> where S: Signal {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Stereo<S: Signal> {
+    signal: S,
+    sample: Option<S::Sample>,
+}
+
+impl<S> Stereo<S> where S: Signal {
+    pub(super) fn new(signal: S) -> Self {
+        Stereo { signal, sample: None }
+    }
+}
+
+impl<S, A> Iterator for Stereo<S> where S: Signal<Sample=(A, A)>, A: Copy {
+    type Item = A;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(s) = self.sample {
+            self.sample = None;
+            Some(s.1.clone())
+        } else {
+            self.sample = self.signal.next();
+            self.sample.map(|v| v.0)
+        }
+    }
+}
+
+impl<S, A> rodio::Source for Stereo<S>
+where
+    S: Signal<Sample=(A, A)>,
+    A: rodio::Sample,
+{
+    fn current_frame_len(&self) -> Option<usize> {
+        None
+    }
+    fn channels(&self) -> u16 {
+        2
+    }
+    fn sample_rate(&self) -> u32 {
+        self.signal.rate().round() as u32
+    }
+    fn total_duration(&self) -> Option<std::time::Duration> {
+        None
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Take<S> {
     signal: S,
