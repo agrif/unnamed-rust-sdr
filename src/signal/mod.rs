@@ -1,10 +1,26 @@
 use crate::filter::IntoFilter;
 use crate::resample;
 
+mod times;
+
+mod sources;
+pub use sources::*;
+
+mod adapters;
+pub use adapters::*;
+
 pub trait Signal {
     type Sample;
     fn next(&mut self) -> Option<Self::Sample>;
     fn rate(&self) -> f32;
+
+    fn block(self, size: f32) -> Block<Self>
+    where
+        Self::Sample: Clone,
+        Self: Sized,
+    {
+        Block::new(self, size)
+    }
 
     fn enumerate(self) -> Enumerate<Self> where Self: Sized {
         Enumerate::new(self)
@@ -91,12 +107,4 @@ pub trait Signal {
         Tee::new(self)
     }
 }
-
-mod times;
-
-mod sources;
-pub use sources::*;
-
-mod adapters;
-pub use adapters::*;
 

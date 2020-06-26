@@ -45,9 +45,9 @@ fn main() -> std::io::Result<()> {
         filter::Biquadratic::LowPass(20000.0, 0.7),
     );
 
-    let fm = rtl.listen()?;
-    let fm = fm.filter(pllf).map(|f| f.unwrap_or(0.0) / 75000.0);
-    let fm = fm.resample_with(resample::ConverterType::SincFastest, 48000.0 * 3.0);
+    let fm = rtl.listen()?.block(0.1);
+    let fm = fm.filter(pllf).map(|f| f.unwrap_or(0.0) / 75000.0).block(0.1);
+    let fm = fm.resample_with(resample::ConverterType::SincFastest, 48000.0 * 3.0).block(0.1);
 
     let deemph = filter::Biquadratic::Lr(1.0 / (75.0 * 0.001 * 0.001));
 
@@ -68,9 +68,9 @@ fn main() -> std::io::Result<()> {
             0.0
         };
         (mono, diff)
-    });
+    }).block(0.1);
 
-    let fm = fm.resample_with(resample::ConverterType::SincBestQuality, 48000.0);
+    let fm = fm.resample(48000.0).block(0.1);
 
     let mut monod = deemph.clone().into_filter(fm.rate());
     let mut diffd = deemph.clone().into_filter(fm.rate());
@@ -78,7 +78,7 @@ fn main() -> std::io::Result<()> {
         let mono = monod.apply(monov);
         let diff = diffd.apply(diffv);
         (mono + diff, mono - diff)
-    });
+    }).block(0.1);
 
     if let Some(outfile) = matches.value_of("output") {
         let spec = hound::WavSpec {
