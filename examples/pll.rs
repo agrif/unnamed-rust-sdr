@@ -1,8 +1,7 @@
 use sdr::*;
+use plotters::prelude::*;
 
-fn main() -> std::io::Result<()> {
-    let plt = plot::Plot::new();
-
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let range = 200000.0;
     let df = range / 10.0;
 
@@ -17,8 +16,22 @@ fn main() -> std::io::Result<()> {
     let pll = freq.clone().map(|(f, v)| {
         (f, pllf.apply(v).unwrap_or(0.0))
     });
-    plt.plot(0, 0, pll.skip(1.0 / df).iter());
-    plt.plot(1, 0, freq.skip(1.0 / df).iter());
-    plt.show()?;
+
+    let root = BitMapBackend::new("pll.png", (640, 640))
+        .into_drawing_area();
+    root.fill(&WHITE)?;
+    let subs = root.split_evenly((2, 1));
+
+    plot::Simple::on(&subs[0])
+        .title("PLL Output")
+        .xlabel("f")
+        .add_line(pll.skip(1.0 / df).iter(), None)
+        .draw()?;
+    plot::Simple::on(&subs[1])
+        .title("Input")
+        .xlabel("f")
+        .add_reim(freq.skip(1.0 / df).iter(), None)
+        .draw()?;
+
     Ok(())
 }

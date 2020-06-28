@@ -1,6 +1,7 @@
 use sdr::*;
+use plotters::prelude::*;
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rtl = rtltcp::RtlTcp::new()
         .address("localhost:1234")
         .rate(1800000)
@@ -44,7 +45,7 @@ fn main() -> std::io::Result<()> {
         (f, mono, pilottune.unwrap_or(0.0), diff)
     });
 
-    let fm = fm.skip(2.0).take(2.0);
+    let fm = fm.skip(2.0).take(0.1);
     let (fmmono, fm) = fm.tee();
     let fmmono = fmmono.map(|v| v.1);
     let (fmpilot, fm) = fm.tee();
@@ -53,11 +54,35 @@ fn main() -> std::io::Result<()> {
     let fmdiff = fmdiff.map(|v| v.3);
     let fm = fm.map(|v| v.0);
 
-    let plt = plot::Plot::new();
-    plt.plot(0, 0, fft::rfft(fm).into_iter().map(|(f, v)| (f, v.norm())));
-    plt.plot(1, 0, fft::rfft(fmmono).into_iter().map(|(f, v)| (f, v.norm())));
-    plt.plot(2, 0, fmpilot.enumerate());
-    plt.plot(3, 0, fft::rfft(fmdiff).into_iter().map(|(f, v)| (f, v.norm())));
-    plt.show()?;
+    let root = BitMapBackend::new("fft.png", (640, 200 * 4))
+        .into_drawing_area();
+    root.fill(&WHITE)?;
+    let subs = root.split_evenly((4, 1));
+
+    plot::Simple::on(&subs[0])
+        .title("Raw Demodulated FM")
+        .xlabel("f")
+        .ylabel("dB")
+        .add_complex(fft::rfft(fm), true, None)
+        .draw()?;
+    plot::Simple::on(&subs[1])
+        .title("L + R")
+        .xlabel("f")
+        .ylabel("dB")
+        .add_complex(fft::rfft(fmmono), true, None)
+        .draw()?;
+    plot::Simple::on(&subs[2])
+        .title("Pilot Tune Deviation")
+        .xlabel("t")
+        .ylabel("df")
+        .add_line(fmpilot.enumerate(), None)
+        .draw()?;
+    plot::Simple::on(&subs[3])
+        .title("L - R")
+        .xlabel("f")
+        .ylabel("dB")
+        .add_complex(fft::rfft(fmdiff), true, None)
+        .draw()?;
+
     Ok(())
 }
