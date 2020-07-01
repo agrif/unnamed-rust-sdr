@@ -2,12 +2,28 @@ use sdr::*;
 use plotters::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let matches = plot::cli::setup(
+        clap::App::new("fft")
+            .arg(clap::Arg::with_name("FREQ")
+                 .required(true)
+                 .help("the frequency to tune to, in MHz")
+                 .index(1))
+            .arg(clap::Arg::with_name("address")
+                 .help("the rtltcp address to connect to")
+                 .short("a")
+                 .long("address")
+                 .value_name("ADDRESS")
+                 .default_value("localhost:1234")
+                 .takes_value(true))
+    ).get_matches();
+
+    use clap::value_t_or_exit;
     let rtl = rtltcp::RtlTcp::new()
-        .address("localhost:1234")
+        .address(matches.value_of("address").unwrap())
         .rate(1800000)
         .gain(None)
         .rtlagc(true)
-        .frequency((97.9 * 1000000.0) as u32);
+        .frequency((value_t_or_exit!(matches, "FREQ", f32) * 1000000.0) as u32);
 
     let pllf = filter::PllDesign::new(
         0.0, 0.035,
@@ -54,35 +70,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fmdiff = fmdiff.map(|v| v.3);
     let fm = fm.map(|v| v.0);
 
-    let root = BitMapBackend::new("fft.png", (640, 200 * 4))
-        .into_drawing_area();
-    root.fill(&WHITE)?;
-    let subs = root.split_evenly((4, 1));
+    plot::cli::run(&matches, (640, 200 * 4), |root| {
+        root.fill(&WHITE)?;
+        let subs = root.split_evenly((4, 1));
 
-    plot::Simple::on(&subs[0])
-        .title("Raw Demodulated FM")
-        .xlabel("f")
-        .ylabel("dB")
-        .add_complex(fft::rfft(fm), true, None)
-        .draw()?;
-    plot::Simple::on(&subs[1])
-        .title("L + R")
-        .xlabel("f")
-        .ylabel("dB")
-        .add_complex(fft::rfft(fmmono), true, None)
-        .draw()?;
-    plot::Simple::on(&subs[2])
-        .title("Pilot Tune Deviation")
-        .xlabel("t")
-        .ylabel("df")
-        .add_line(fmpilot.enumerate(), None)
-        .draw()?;
-    plot::Simple::on(&subs[3])
-        .title("L - R")
-        .xlabel("f")
-        .ylabel("dB")
-        .add_complex(fft::rfft(fmdiff), true, None)
-        .draw()?;
+        plot::Simple::on(&subs[0])
+            .title("Raw Demodulated FM")
+            .xlabel("f")
+            .ylabel("dB")
+            .add_complex(fft::rfft(fm), true, None)
+            .draw()?;
+        plot::Simple::on(&subs[1])
+            .title("L + R")
+            .xlabel("f")
+            .ylabel("dB")
+            .add_complex(fft::rfft(fmmono), true, None)
+            .draw()?;
+        plot::Simple::on(&subs[2])
+            .title("Pilot Tune Deviation")
+            .xlabel("t")
+            .ylabel("df")
+            .add_line(fmpilot.enumerate(), None)
+            .draw()?;
+        plot::Simple::on(&subs[3])
+            .title("L - R")
+            .xlabel("f")
+            .ylabel("dB")
+            .add_complex(fft::rfft(fmdiff), true, None)
+            .draw()?;
 
-    Ok(())
+        Ok(())
+     })
 }

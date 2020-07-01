@@ -62,13 +62,16 @@ where
         }
     }
 
-    pub fn add_series<E, S, F>(&mut self, series: S, anno: F)
+    // oddity: DynElement<'static, DB, Coord> does not implement
+    // IntoDynElement<'static, DB, Coord>, because DB is not 'static
+    // (this seems like a massive oversight! DB shouldn't need to be static.)
+    // consequence: this must accept DynElement directly. boo.
+    pub fn add_series<S, F>(&mut self, series: S, anno: F)
     where
-        E: IntoDynElement<'static, DB, (X, Y)>,
-        S: IntoIterator<Item=E>,
+        S: IntoIterator<Item=DynElement<'static, DB, (X, Y)>>,
         F: FnOnce(&mut SeriesAnno<'a, DB>) + 'static,
     {
-        let data: Vec<_> = series.into_iter().map(|e| e.into_dyn()).collect();
+        let data: Vec<_> = series.into_iter().collect();
         for el in data.iter() {
             for (x, y) in el.point_iter() {
                 Self::extend(&mut self.xrange, x);

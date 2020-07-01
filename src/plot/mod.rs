@@ -1,6 +1,8 @@
 mod dynbackend;
 pub use dynbackend::*;
 
+pub mod cli;
+
 mod autorange;
 pub use autorange::*;
 

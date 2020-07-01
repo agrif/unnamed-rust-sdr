@@ -17,21 +17,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (f, pllf.apply(v).unwrap_or(0.0))
     });
 
-    let root = BitMapBackend::new("pll.png", (640, 640))
-        .into_drawing_area();
-    root.fill(&WHITE)?;
-    let subs = root.split_evenly((2, 1));
+    let matches = plot::cli::setup(clap::App::new("pll"))
+        .get_matches();
 
-    plot::Simple::on(&subs[0])
-        .title("PLL Output")
-        .xlabel("f")
-        .add_line(pll.skip(1.0 / df).iter(), None)
-        .draw()?;
-    plot::Simple::on(&subs[1])
-        .title("Input")
-        .xlabel("f")
-        .add_reim(freq.skip(1.0 / df).iter(), None)
-        .draw()?;
+    plot::cli::run(&matches, (640, 640), |root| {
+        root.fill(&WHITE)?;
+        let subs = root.split_evenly((2, 1));
 
-    Ok(())
+        plot::Simple::on(&subs[0])
+            .title("PLL Output")
+            .xlabel("f")
+            .add_line(pll.skip(1.0 / df).iter(), None)
+            .draw()?;
+        plot::Simple::on(&subs[1])
+            .title("Input")
+            .xlabel("f")
+            .add_reim(freq.skip(1.0 / df).iter(), None)
+            .draw()?;
+
+        Ok(())
+    })
 }

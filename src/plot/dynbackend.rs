@@ -4,25 +4,25 @@ use plotters::style::{FontDesc, RGBAColor, ShapeStyle, TextStyle};
 // a Box<dyn Error> that can implement Error without overlapping
 // impls for From
 #[derive(Debug)]
-pub struct DynError<'a> {
-    inner: Box<dyn std::error::Error + Send + Sync + 'a>,
+pub struct DynError {
+    inner: Box<dyn std::error::Error + Send + Sync + 'static>,
 }
 
-impl<'a> DynError<'a> {
-    pub fn new<E: std::error::Error + Send + Sync + 'a>(err: E) -> Self {
+impl DynError {
+    pub fn new<E: std::error::Error + Send + Sync + 'static>(err: E) -> Self {
         DynError {
             inner: Box::new(err),
         }
     }
 }
 
-impl<'a> std::fmt::Display for DynError<'a> {
+impl<'a> std::fmt::Display for DynError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<'a> std::error::Error for DynError<'a> {
+impl<'a> std::error::Error for DynError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         self.inner.source()
     }
@@ -45,11 +45,11 @@ impl<'a> std::error::Error for DynError<'a> {
 }
 
 // private helper for making DrawingErrorKind<DynError>
-fn wrap_err<'a, T, E>(
+fn wrap_err<T, E>(
     r: Result<T, DrawingErrorKind<E>>,
-) -> Result<T, DrawingErrorKind<DynError<'a>>>
+) -> Result<T, DrawingErrorKind<DynError>>
 where
-    E: std::error::Error + Send + Sync + 'a,
+    E: std::error::Error + Send + Sync + 'static,
 {
     match r {
         Ok(v) => Ok(v),
@@ -65,65 +65,66 @@ where
 // a type-erased, trait object compatible version of DrawingBackend
 pub trait DynDrawingBackend<'a>: 'a {
     fn dyn_get_size(&self) -> (u32, u32);
-    fn dyn_ensure_prepared(&mut self) -> Result<(), DrawingErrorKind<DynError<'a>>>;
-    fn dyn_present(&mut self) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    fn dyn_ensure_prepared(&mut self) -> Result<(), DrawingErrorKind<DynError>>;
+    fn dyn_present(&mut self) -> Result<(), DrawingErrorKind<DynError>>;
     fn dyn_draw_pixel(
         &mut self,
         point: BackendCoord,
         color: &RGBAColor,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(), DrawingErrorKind<DynError>>;
     fn dyn_draw_line(
         &mut self,
         from: BackendCoord,
         to: BackendCoord,
         style: &ShapeStyle,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(), DrawingErrorKind<DynError>>;
     fn dyn_draw_rect(
         &mut self,
         upper_left: BackendCoord,
         bottom_right: BackendCoord,
         style: &ShapeStyle,
         fill: bool,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(), DrawingErrorKind<DynError>>;
     fn dyn_draw_path(
         &mut self,
         path: Vec<BackendCoord>,
         style: &ShapeStyle,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(), DrawingErrorKind<DynError>>;
     fn dyn_draw_circle(
         &mut self,
         center: BackendCoord,
         radius: u32,
         style: &ShapeStyle,
         fill: bool,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(), DrawingErrorKind<DynError>>;
     fn dyn_fill_polygon(
         &mut self,
         vert: Vec<BackendCoord>,
         style: &ShapeStyle,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(), DrawingErrorKind<DynError>>;
     fn dyn_draw_text(
         &mut self,
         text: &str,
         style: &TextStyle,
         pos: BackendCoord,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(), DrawingErrorKind<DynError>>;
     fn dyn_estimate_text_size<'b>(
         &self,
         text: &str,
         font: &FontDesc<'b>,
-    ) -> Result<(u32, u32), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(u32, u32), DrawingErrorKind<DynError>>;
     fn dyn_blit_bitmap<'b>(
         &mut self,
         pos: BackendCoord,
         dim: (u32, u32),
         src: &'b [u8],
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>>;
+    ) -> Result<(), DrawingErrorKind<DynError>>;
 }
 
 pub fn erase<'a, DB>(backend: DB) -> Box<dyn DynDrawingBackend<'a>>
 where
     DB: DrawingBackend + 'a,
+    DB::ErrorType: 'static,
 {
     Box::new(backend)
 }
@@ -132,22 +133,22 @@ where
 impl<'a, T> DynDrawingBackend<'a> for T
 where
     T: DrawingBackend + 'a,
-    T::ErrorType: 'a,
+    T::ErrorType: 'static,
 {
     fn dyn_get_size(&self) -> (u32, u32) {
         self.get_size()
     }
-    fn dyn_ensure_prepared(&mut self) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    fn dyn_ensure_prepared(&mut self) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.ensure_prepared())
     }
-    fn dyn_present(&mut self) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    fn dyn_present(&mut self) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.present())
     }
     fn dyn_draw_pixel(
         &mut self,
         point: BackendCoord,
         color: &RGBAColor,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.draw_pixel(point, color))
     }
     fn dyn_draw_line(
@@ -155,7 +156,7 @@ where
         from: BackendCoord,
         to: BackendCoord,
         style: &ShapeStyle,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.draw_line(from, to, style))
     }
     fn dyn_draw_rect(
@@ -164,14 +165,14 @@ where
         bottom_right: BackendCoord,
         style: &ShapeStyle,
         fill: bool,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.draw_rect(upper_left, bottom_right, style, fill))
     }
     fn dyn_draw_path(
         &mut self,
         path: Vec<BackendCoord>,
         style: &ShapeStyle,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.draw_path(path, style))
     }
     fn dyn_draw_circle(
@@ -180,14 +181,14 @@ where
         radius: u32,
         style: &ShapeStyle,
         fill: bool,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.draw_circle(center, radius, style, fill))
     }
     fn dyn_fill_polygon(
         &mut self,
         vert: Vec<BackendCoord>,
         style: &ShapeStyle,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.fill_polygon(vert, style))
     }
     fn dyn_draw_text(
@@ -195,14 +196,14 @@ where
         text: &str,
         style: &TextStyle,
         pos: BackendCoord,
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.draw_text(text, style, pos))
     }
     fn dyn_estimate_text_size<'b>(
         &self,
         text: &str,
         font: &FontDesc<'b>,
-    ) -> Result<(u32, u32), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(u32, u32), DrawingErrorKind<DynError>> {
         wrap_err(self.estimate_text_size(text, font))
     }
     fn dyn_blit_bitmap<'b>(
@@ -210,7 +211,7 @@ where
         pos: BackendCoord,
         (iw, ih): (u32, u32),
         src: &'b [u8],
-    ) -> Result<(), DrawingErrorKind<DynError<'a>>> {
+    ) -> Result<(), DrawingErrorKind<DynError>> {
         wrap_err(self.blit_bitmap(pos, (iw, ih), src))
     }
 }
@@ -224,7 +225,7 @@ fn wrap_style<S: BackendStyle>(style: &S) -> ShapeStyle {
 macro_rules! impl_drawing_backend {
     ($($l:tt)*) => {
         impl<'a> DrawingBackend for $($l)* {
-            type ErrorType = DynError<'a>;
+            type ErrorType = DynError;
             fn get_size(&self) -> (u32, u32) {
                 (**self).dyn_get_size()
             }

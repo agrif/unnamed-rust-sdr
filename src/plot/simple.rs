@@ -20,7 +20,7 @@ pub struct Simple<'a, 'b, DB: DrawingBackend, X: Clone, Y: Clone> {
 
 impl<'a, 'b, DB, X, Y> Simple<'a, 'b, DB, X, Y>
 where
-    DB: DrawingBackend + 'static,
+    DB: DrawingBackend + 'a,
     X: Clone + Debug + num::Float + 'static,
     Y: Clone + Debug + num::Float + 'static,
     Range<X>: AsRangedCoord<Value=X>,
@@ -63,16 +63,15 @@ where
         style
     }
 
-    pub fn add_series<E, S, T, TE>(
+    pub fn add_series<S, F, FE>(
         &mut self,
         series: S,
-        label: Option<(&str, T)>,
+        label: Option<(&str, F)>,
     ) -> &mut Self
     where
-        E: IntoDynElement<'static, DB, (X, Y)>,
-        S: IntoIterator<Item=E>,
-        T: Fn(BackendCoord) -> TE + 'static,
-        TE: IntoDynElement<'a, DB, BackendCoord>,
+        S: IntoIterator<Item=DynElement<'static, DB, (X, Y)>>,
+        F: Fn(BackendCoord) -> FE + 'static,
+        FE: IntoDynElement<'a, DB, BackendCoord>,
     {
         if let Some(anno) = label {
             let name = anno.0.to_owned();
