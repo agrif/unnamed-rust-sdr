@@ -1,4 +1,5 @@
 use crate::filter::IntoFilter;
+use crate::filter;
 use crate::resample;
 
 mod times;
@@ -60,6 +61,14 @@ pub trait Signal {
         Self: Sized,
     {
         Map::new(self, f)
+    }
+
+    fn monitor<F>(self, rate: f32, f: F) -> Filter<Self, filter::Monitored<F>>
+    where
+        F: FnMut(&Self::Sample) -> (),
+        Self: Sized,
+    {
+        self.filter(filter::Monitor(rate, f))
     }
 
     fn resample(self, rate: f32) -> Resample<Self>

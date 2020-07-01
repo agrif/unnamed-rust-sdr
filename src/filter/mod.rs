@@ -55,3 +55,36 @@ impl<A> Filter<A> for Identity {
         value
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct Monitor<F>(pub f32, pub F);
+
+#[derive(Clone, Debug)]
+pub struct Monitored<F> {
+    every: usize,
+    i: usize,
+    func: F,
+}
+
+impl<F, A> IntoFilter<A> for Monitor<F> where F: FnMut(&A) -> () {
+    type Filter = Monitored<F>;
+    fn into_filter(self, rate: f32) -> Self::Filter {
+        Monitored {
+            every: (rate / self.0).round() as usize,
+            i: 0,
+            func: self.1,
+        }
+    }
+}
+
+impl<F, A> Filter<A> for Monitored<F> where F: FnMut(&A) -> () {
+    type Output = A;
+    fn apply(&mut self, value: A) -> Self::Output {
+        self.i += 1;
+        if self.i >= self.every {
+            self.i = 0;
+            (self.func)(&value);
+        }
+        value
+    }
+}

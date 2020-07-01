@@ -68,7 +68,7 @@ fn main() -> std::io::Result<()> {
             0.0
         };
         (mono, diff)
-    }).block(0.1);
+    }).block(0.1).monitor(1.0, |v| println!("monitor {:?}", v));
 
     let fm = fm.resample(48000.0).block(0.1);
 
