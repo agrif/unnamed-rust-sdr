@@ -1,4 +1,6 @@
-use super::{Convolve, Fir, IntoFilter};
+use super::FilterDesign;
+use super::fir::Fir;
+use super::convolve::Convolve;
 
 use nalgebra::{DMatrix, DVector};
 use special_fun::FloatSpecial;
@@ -71,9 +73,10 @@ impl Derivative {
     }
 }
 
-impl<A> IntoFilter<A> for Derivative where A: Convolve<f32 >{
+impl<A> FilterDesign<A> for Derivative where A: Convolve<f32 >{
+    type Output = A;
     type Filter = Fir<f32, A>;
-    fn into_filter(self, rate: f32) -> Self::Filter {
+    fn design(self, rate: f32) -> Self::Filter {
         Fir::new(self.make_coef(rate))
     }
 }

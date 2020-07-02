@@ -1,4 +1,5 @@
-use super::{Convolve, Filter, IntoFilter};
+use super::{Filter, FilterDesign};
+use super::convolve::Convolve;
 
 use std::collections::VecDeque;
 
@@ -32,23 +33,26 @@ impl<C, A> Filter<A> for Fir<C, A> where A: Convolve<C> {
 }
 
 
-impl<C, A> IntoFilter<A> for Fir<C, A> where A: Convolve<C> {
+impl<C, A> FilterDesign<A> for Fir<C, A> where A: Convolve<C> {
+    type Output = A;
     type Filter = Fir<C, A>;
-    fn into_filter(self, _rate: f32) -> Self::Filter {
+    fn design(self, _rate: f32) -> Self::Filter {
         Fir::new(self.coef)
     }
 }
 
-impl<C, A> IntoFilter<A> for Vec<C> where A: Convolve<C> {
+impl<C, A> FilterDesign<A> for Vec<C> where A: Convolve<C> {
+    type Output = A;
     type Filter = Fir<C, A>;
-    fn into_filter(self, _rate: f32) -> Self::Filter {
+    fn design(self, _rate: f32) -> Self::Filter {
         Fir::new(self)
     }
 }
 
-impl<'a, C, A> IntoFilter<A> for &'a [C] where A: Convolve<C>, C: Clone {
+impl<'a, C, A> FilterDesign<A> for &'a [C] where A: Convolve<C>, C: Clone {
+    type Output = A;
     type Filter = Fir<C, A>;
-    fn into_filter(self, _rate: f32) -> Self::Filter {
+    fn design(self, _rate: f32) -> Self::Filter {
         Fir::new(self.to_owned())
     }
 }

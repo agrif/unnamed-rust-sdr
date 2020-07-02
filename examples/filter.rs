@@ -5,9 +5,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rate = 44100.0;
     let range = -20000.0..20000.0;
     let df = 100.0;
-    let filter = filter::Biquadratic::Lr(13333.0);
+    let filter = filter::BiquadD::Lr(13333.0);
 
-    let mut sweepfilter = filter.into_filter(rate);
+    let mut sweepfilter = filter.design(rate);
     let sweep = signal::freq_sweep(rate, df, true, range)
         .map(move |(f, v)| {
             (f, sweepfilter.apply(v) / v)

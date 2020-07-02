@@ -27,28 +27,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pllf = filter::PllDesign::new(
         0.0, 0.035,
-        filter::Biquadratic::LowPass(80000.0, 0.7),
+        filter::BiquadD::LowPass(80000.0, 0.7),
         filter::Identity,
-        filter::Biquadratic::LowPass(20000.0, 0.7),
+        filter::BiquadD::LowPass(20000.0, 0.7),
     );
 
     let pilotf = 19000.0;
     let pllpilot = filter::PllDesign::new(
         pilotf, 0.0002,
-        filter::Biquadratic::LowPass(200.0, 0.7),
-        filter::Biquadratic::LowPass(20.0, 0.7),
-        filter::Biquadratic::LowPass(20.0, 0.7),
+        filter::BiquadD::LowPass(200.0, 0.7),
+        filter::BiquadD::LowPass(20.0, 0.7),
+        filter::BiquadD::LowPass(20.0, 0.7),
     );
 
-    let deemph = filter::Biquadratic::Lr(1.0 / (75.0 * 0.001 * 0.001));
+    let deemph = filter::BiquadD::Lr(1.0 / (75.0 * 0.001 * 0.001));
 
     let fm = rtl.listen()?;
     let fm = fm.filter(pllf).map(|f| f.unwrap_or(0.0) / 75000.0);
     let fm = fm.resample_with(resample::ConverterType::Linear, 48000.0 * 3.0);
 
-    let mut monod = deemph.clone().into_filter(fm.rate());
-    let mut diffd = deemph.clone().into_filter(fm.rate());
-    let mut pilot = pllpilot.into_filter(fm.rate());
+    let mut monod = deemph.clone().design(fm.rate());
+    let mut diffd = deemph.clone().design(fm.rate());
+    let mut pilot = pllpilot.design(fm.rate());
     let fm = fm.map(|f| {
         let mono = monod.apply(f);
         let pilottune = pilot.apply(num::Complex::new(f, 0.0));

@@ -1,4 +1,4 @@
-use super::{Filter, IntoFilter};
+use super::{Filter, FilterDesign};
 
 #[derive(Clone, Debug)]
 pub struct PllDesign<Loop, Output, Lock> {
@@ -36,25 +36,23 @@ impl<Loop, Output, Lock> PllDesign<Loop, Output, Lock> {
     }
 }
 
-impl<Loop, Output, Lock> IntoFilter<num::Complex<f32>>
+impl<Loop, Output, Lock> FilterDesign<num::Complex<f32>>
     for PllDesign<Loop, Output, Lock>
 where
-    Loop: IntoFilter<num::Complex<f32>>,
-    Loop::Filter: Filter<num::Complex<f32>, Output=num::Complex<f32>>,
-    Output: IntoFilter<f32>,
-    Output::Filter: Filter<f32, Output=f32>,
-    Lock: IntoFilter<f32>,
-    Lock::Filter: Filter<f32, Output=f32>,
+    Loop: FilterDesign<num::Complex<f32>, Output=num::Complex<f32>>,
+    Output: FilterDesign<f32, Output=f32>,
+    Lock: FilterDesign<f32, Output=f32>,
 {
+    type Output = Option<f32>;
     type Filter = Pll<Loop::Filter, Output::Filter, Lock::Filter>;
-    fn into_filter(self, rate: f32) -> Self::Filter {
+    fn design(self, rate: f32) -> Self::Filter {
         Pll {
             rate,
             reference: self.reference / rate,
             gain: self.gain, // FIXME this has something to do..
-            loopfilter: self.loopfilter.into_filter(rate),
-            outputfilter: self.outputfilter.into_filter(rate),
-            lockfilter: self.lockfilter.into_filter(rate),
+            loopfilter: self.loopfilter.design(rate),
+            outputfilter: self.outputfilter.design(rate),
+            lockfilter: self.lockfilter.design(rate),
 
             nphase: 0.0,
             value: num::Complex::new(0.0, 0.0),

@@ -1,4 +1,5 @@
-use super::{Convolve, Filter, IntoFilter};
+use super::{Filter, FilterDesign};
+use super::convolve::Convolve;
 
 #[derive(Clone, Debug)]
 pub struct Biquad<C, A> {
@@ -55,9 +56,10 @@ impl<C, A> Filter<A> for Biquad<C, A> where A: Convolve<C> {
     }
 }
 
-impl<C, A> IntoFilter<A> for Biquad<C, A> where A: Convolve<C> {
+impl<C, A> FilterDesign<A> for Biquad<C, A> where A: Convolve<C> {
+    type Output = A;
     type Filter = Biquad<C, A>;
-    fn into_filter(self, _rate: f32) -> Self::Filter {
+    fn design(self, _rate: f32) -> Self::Filter {
         Biquad {
             x1: A::zero(),
             x2: A::zero(),
@@ -69,7 +71,7 @@ impl<C, A> IntoFilter<A> for Biquad<C, A> where A: Convolve<C> {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum Biquadratic {
+pub enum BiquadD {
     LowPass(f32, f32),
     HighPass(f32, f32),
     BandPass(f32, f32),
@@ -78,10 +80,11 @@ pub enum Biquadratic {
     Lr(f32),
 }
 
-impl<A> IntoFilter<A> for Biquadratic where A: Convolve<f32> {
+impl<A> FilterDesign<A> for BiquadD where A: Convolve<f32> {
+    type Output = A;
     type Filter = Biquad<f32, A>;
-    fn into_filter(self, rate: f32) -> Self::Filter {
-        use Biquadratic::*;
+    fn design(self, rate: f32) -> Self::Filter {
+        use BiquadD::*;
         use std::f32::consts::PI;
         match self {
             LowPass(freq, q) => {

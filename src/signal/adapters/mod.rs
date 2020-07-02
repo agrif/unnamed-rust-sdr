@@ -36,12 +36,12 @@ where
     S: Signal,
     F: filter::Filter<S::Sample>,
 {
-    pub(super) fn new<IF>(signal: S, fir: IF) -> Self
+    pub(super) fn new<D>(signal: S, fd: D) -> Self
     where
-        IF: filter::IntoFilter<S::Sample, Filter=F>,
+        D: filter::FilterDesign<S::Sample, Filter=F, Output=F::Output>,
     {
         Filter {
-            filter: fir.into_filter(signal.rate()),
+            filter: fd.design_for(&signal),
             signal: signal,
         }
     }

@@ -1,4 +1,4 @@
-use crate::filter::IntoFilter;
+use crate::filter::FilterDesign;
 use crate::filter;
 use crate::resample;
 
@@ -37,7 +37,7 @@ pub trait Signal {
 
     fn filter<F>(self, filter: F) -> Filter<Self, F::Filter>
     where
-        F: IntoFilter<Self::Sample>,
+        F: FilterDesign<Self::Sample>,
         Self: Sized,
     {
         Filter::new(self, filter)
@@ -63,12 +63,12 @@ pub trait Signal {
         Map::new(self, f)
     }
 
-    fn monitor<F>(self, rate: f32, f: F) -> Filter<Self, filter::Monitored<F>>
+    fn monitor<F>(self, rate: f32, f: F) -> Filter<Self, filter::Monitor<F>>
     where
         F: FnMut(&Self::Sample) -> (),
         Self: Sized,
     {
-        self.filter(filter::Monitor(rate, f))
+        self.filter(filter::MonitorD(rate, f))
     }
 
     fn resample(self, rate: f32) -> Resample<Self>

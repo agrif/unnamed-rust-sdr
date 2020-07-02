@@ -5,8 +5,7 @@ pub mod signal;
 pub use signal::Signal;
 
 pub mod filter;
-pub use filter::IntoFilter;
-pub use filter::Filter;
+pub use filter::{Filter, FilterDesign};
 
 pub mod resample;
 

@@ -8,10 +8,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let freq = signal::freq_sweep(1800000.0, df, true, -range..range);
     let mut pllf = filter::PllDesign::new(
         0.0, 0.035,
-        filter::Biquadratic::LowPass(80000.0, 0.7),
-        filter::Biquadratic::LowPass(20000.0, 0.7),
-        filter::Biquadratic::LowPass(20000.0, 0.7),
-    ).into_filter(freq.rate());
+        filter::BiquadD::LowPass(80000.0, 0.7),
+        filter::BiquadD::LowPass(20000.0, 0.7),
+        filter::BiquadD::LowPass(20000.0, 0.7),
+    ).design(freq.rate());
 
     let pll = freq.clone().map(|(f, v)| {
         (f, pllf.apply(v).unwrap_or(0.0))
