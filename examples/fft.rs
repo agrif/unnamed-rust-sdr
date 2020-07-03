@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut monod = deemph.clone().design(fm.rate());
     let mut diffd = deemph.clone().design(fm.rate());
     let mut pilot = pllpilot.design(fm.rate());
-    let fm = fm.map(|f| {
+    let fm = fm.map(move |f| {
         let mono = monod.apply(f);
         let pilottune = pilot.apply(num::Complex::new(f, 0.0));
         let diff = if let Some(_) = pilottune {
@@ -61,13 +61,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (f, mono, pilottune.unwrap_or(0.0), diff)
     });
 
-    let fm = fm.skip(2.0).take(0.1);
-    let (fmmono, fm) = fm.tee();
-    let fmmono = fmmono.map(|v| v.1);
-    let (fmpilot, fm) = fm.tee();
-    let fmpilot = fmpilot.map(|v| v.2);
-    let (fmdiff, fm) = fm.tee();
-    let fmdiff = fmdiff.map(|v| v.3);
+    let fm = fm.skip(2.0).take(0.1).block(0.1);
+    let fmmono = fm.clone().map(|v| v.1);
+    let fmpilot = fm.clone().map(|v| v.2);
+    let fmdiff = fm.clone().map(|v| v.3);
     let fm = fm.map(|v| v.0);
 
     plot::cli::run(&matches, (640, 200 * 4), |root| {

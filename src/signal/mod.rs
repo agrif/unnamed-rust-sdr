@@ -23,6 +23,10 @@ pub trait Signal {
         Block::new(self, size)
     }
 
+    fn decimate(self, rate: f32) -> Decimate<Self> where Self: Sized {
+        Decimate::new(self, rate)
+    }
+
     fn enumerate(self) -> Enumerate<Self> where Self: Sized {
         Enumerate::new(self)
     }
@@ -109,11 +113,11 @@ pub trait Signal {
         Take::new(self, duration)
     }
 
-    fn tee(self) -> (Tee<Self>, Tee<Self>)
+    fn window(self, duration: f32) -> Window<Self>
     where
+        Self::Sample: num::Zero + Clone,
         Self: Sized,
     {
-        Tee::new(self)
+        Window::new(self, duration)
     }
 }
-

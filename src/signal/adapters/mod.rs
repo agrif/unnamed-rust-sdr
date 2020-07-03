@@ -11,6 +11,36 @@ mod resample;
 pub use resample::*;
 
 #[derive(Debug, Clone)]
+pub struct Decimate<S> {
+    wait: usize,
+    signal: S,
+}
+
+impl<S> Decimate<S> where S: Signal {
+    pub(super) fn new(signal: S, rate: f32) -> Self {
+        Decimate {
+            wait: (signal.rate() / rate).round() as usize,
+            signal,
+        }
+    }
+}
+
+impl<S> Signal for Decimate<S> where S: Signal {
+    type Sample = S::Sample;
+    fn next(&mut self) -> Option<Self::Sample> {
+        for _ in 0..(self.wait - 1) {
+            if let None = self.signal.next() {
+                return None;
+            }
+        }
+        self.signal.next()
+    }
+    fn rate(&self) -> f32 {
+        self.signal.rate()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Enumerate<S> {
     signal: S,
     times: Times,
@@ -22,6 +52,14 @@ impl<S> Enumerate<S> where S: Signal {
             times: Times::new(signal.rate()),
             signal,
         }
+    }
+}
+
+impl<S> Iterator for Enumerate<S> where S: Signal {
+    type Item = (f32, S::Sample);
+    fn next(&mut self) -> Option<Self::Item> {
+        // unwrap is safe: times is infinite
+        self.signal.next().map(|v| (self.times.next().unwrap(), v))
     }
 }
 
@@ -58,14 +96,6 @@ where
     }
     fn rate(&self) -> f32 {
         self.signal.rate()
-    }
-}
-
-impl<S> Iterator for Enumerate<S> where S: Signal {
-    type Item = (f32, S::Sample);
-    fn next(&mut self) -> Option<Self::Item> {
-        // unwrap is safe: times is infinite
-        self.signal.next().map(|v| (self.times.next().unwrap(), v))
     }
 }
 
@@ -238,62 +268,36 @@ impl<S> Signal for Take<S> where S: Signal {
 }
 
 #[derive(Debug)]
-pub struct TeeBuffer<S, A> {
-    backlog: VecDeque<A>,
+pub struct Window<S: Signal> {
     signal: S,
-    owner: bool,
+    buffer: std::rc::Rc<std::cell::RefCell<VecDeque<S::Sample>>>,
 }
 
-#[derive(Debug)]
-pub struct Tee<S: Signal> {
-    // we really, really want this to be Send, so
-    // this could almost certainly be done smarter
-    buffer: std::sync::Arc<std::sync::Mutex<TeeBuffer<S, S::Sample>>>,
-    id: bool,
-    rate: f32,
-}
-
-impl<S> Tee<S> where S: Signal {
-    pub(super) fn new(signal: S) -> (Tee<S>, Tee<S>) {
-        let buffer = TeeBuffer {
-            backlog: VecDeque::new(),
+impl<S> Window<S> where S: Signal, S::Sample: num::Zero + Clone {
+    pub(super) fn new(signal: S, duration: f32) -> Self {
+        use num::Zero;
+        let cap = (duration * signal.rate()).round() as usize;
+        let buffer = std::iter::repeat(S::Sample::zero()).take(cap).collect();
+        Window {
             signal,
-            owner: false,
-        };
-        let t1 = Tee {
-            rate: buffer.signal.rate(),
-            buffer: std::sync::Arc::new(std::sync::Mutex::new(buffer)),
-            id: true,
-        };
-        let t2 = Tee {
-            rate: t1.rate,
-            buffer: t1.buffer.clone(),
-            id: false,
-        };
-        (t1, t2)
+            buffer: std::rc::Rc::new(std::cell::RefCell::new(buffer)),
+        }
     }
 }
 
-impl<S> Signal for Tee<S> where S: Signal, S::Sample: Clone {
-    type Sample = S::Sample;
+impl<S> Signal for Window<S> where S: Signal {
+    type Sample = std::rc::Rc<std::cell::RefCell<VecDeque<S::Sample>>>;
     fn next(&mut self) -> Option<Self::Sample> {
-        let mut buffer = self.buffer.lock().unwrap();
-        if buffer.owner == self.id {
-            match buffer.backlog.pop_front() {
-                None => (),
-                some => return some,
-            }
-        }
-        match buffer.signal.next() {
-            None => None,
-            Some(v) => {
-                buffer.backlog.push_back(v.clone());
-                buffer.owner = !self.id;
-                Some(v)
-            },
+        if let Some(v) = self.signal.next() {
+            let mut buf = self.buffer.borrow_mut();
+            buf.pop_front();
+            buf.push_back(v);
+            Some(self.buffer.clone())
+        } else {
+            None
         }
     }
     fn rate(&self) -> f32 {
-        self.rate
+        self.signal.rate()
     }
 }
